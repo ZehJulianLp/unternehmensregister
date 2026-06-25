@@ -13,7 +13,9 @@
             <a href="{{ url_for('index') }}">Firmen</a>
             {% if current_user.is_authenticated %}
                 <a href="{{ url_for('my_companies') }}">Meine Firmen</a>
-                <a href="{{ url_for('company_new') }}">Firma beantragen</a>
+                {% if current_user.role != "viewer" %}
+                    <a href="{{ url_for('company_new') }}">Firma beantragen</a>
+                {% endif %}
                 {% if current_user.is_admin %}
                     <a href="{{ url_for('admin_dashboard') }}">Admin</a>
                     <a href="{{ url_for('admin_pending') }}">Anträge</a>

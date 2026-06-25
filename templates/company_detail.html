@@ -33,7 +33,7 @@
         <div><dt>Sitz</dt><dd>{{ company.headquarters }}</dd></div>
         <div><dt>Bezirk</dt><dd>{{ company.district }}</dd></div>
         <div><dt>Eigentümer</dt><dd>{{ company.owner.username }}</dd></div>
-        <div><dt>Manager</dt><dd>{% if company.managers %}{{ company.managers|map(attribute='user.username')|join(', ') }}{% else %}-{% endif %}</dd></div>
+        <div><dt>Miteigentümer</dt><dd>{% if company.managers %}{{ company.managers|map(attribute='user.username')|join(', ') }}{% else %}-{% endif %}</dd></div>
     </dl>
 </section>
 

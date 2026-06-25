@@ -8,13 +8,13 @@ Eine klassische Flask-Webapp für ein fiktives Unternehmensregister mit Discord 
 - SQLite-Datenbank via SQLAlchemy
 - Discord OAuth2 Login
 - Session-Handling mit Flask-Login
-- Rollen: Mitglied, Eigentümer, Admin
+- Rollen: Zuschauer, Mitglied, Eigentümer, Admin
 - Öffentliche Firmenübersicht mit Suche, Filtern und Pagination
 - Firmen beantragen, bearbeiten, freigeben, ablehnen und löschen
 - Soft Delete für Firmen
 - Register-ID pro Firma, z. B. `RR-0001`
 - Firmenlogos mit serverseitiger Bildprüfung
-- Manager pro Firma
+- Miteigentümer pro Firma
 - Admin-Dashboard mit Statistiken, Audit-Log und Benutzerverwaltung
 - Optional Discord-DMs und Admin-Channel-Benachrichtigungen
 - CSRF-Schutz, Security Headers und Rate Limiting
@@ -142,8 +142,9 @@ http://localhost:5000/
 ## Rollen und Rechte
 
 - Nicht eingeloggte Nutzer können Firmen ansehen.
+- Zuschauer können Firmen ansehen, aber nichts beantragen.
 - Mitglieder können Firmen beantragen.
-- Eigentümer und Manager können ihre Firmen bearbeiten.
+- Eigentümer und Miteigentümer können ihre Firmen bearbeiten.
 - Admins können alle Firmen verwalten, freigeben, ablehnen, löschen und Nutzerrollen ändern.
 - Alle mutierenden Routen prüfen Rechte serverseitig.
 

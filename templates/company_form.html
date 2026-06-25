@@ -45,20 +45,10 @@
 
     {% if current_user.is_authenticated and current_user.is_admin and company %}
         <label>
-            Eigentümer
+            Haupteigentümer
             <select name="owner_id" required>
                 {% for user in users %}
                     <option value="{{ user.id }}" {% if company.owner_id == user.id %}selected{% endif %}>
-                        {{ user.username }} · {{ role_labels[user.role] }}
-                    </option>
-                {% endfor %}
-            </select>
-        </label>
-        <label>
-            Manager
-            <select name="manager_ids" multiple size="5">
-                {% for user in users %}
-                    <option value="{{ user.id }}" {% if company and user.id in company.managers|map(attribute='user_id')|list %}selected{% endif %}>
                         {{ user.username }} · {{ role_labels[user.role] }}
                     </option>
                 {% endfor %}
@@ -75,6 +65,19 @@
         <label>
             Grund für Statusänderung
             <input name="status_reason" placeholder="Optional, wird dem Eigentümer per Discord gesendet">
+        </label>
+    {% endif %}
+
+    {% if can_manage_coowners and company %}
+        <label>
+            Miteigentümer
+            <select name="manager_ids" multiple size="5">
+                {% for user in users %}
+                    <option value="{{ user.id }}" {% if company and user.id in company.managers|map(attribute='user_id')|list %}selected{% endif %}>
+                        {{ user.username }} · {{ role_labels[user.role] }}
+                    </option>
+                {% endfor %}
+            </select>
         </label>
     {% endif %}
 

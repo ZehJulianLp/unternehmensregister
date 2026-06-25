@@ -7,7 +7,7 @@ from flask_sqlalchemy import SQLAlchemy
 db = SQLAlchemy()
 
 
-USER_ROLES = ("member", "owner", "admin")
+USER_ROLES = ("viewer", "member", "owner", "admin")
 COMPANY_STATUSES = ("pending", "active", "inactive", "dissolved", "rejected")
 
 
@@ -20,7 +20,7 @@ class User(UserMixin, db.Model):
     discord_id = db.Column(db.String(32), unique=True, nullable=False, index=True)
     username = db.Column(db.String(120), nullable=False)
     avatar = db.Column(db.String(255), nullable=True)
-    role = db.Column(db.String(20), nullable=False, default="member")
+    role = db.Column(db.String(20), nullable=False, default="viewer")
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 

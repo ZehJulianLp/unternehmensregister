@@ -39,6 +39,7 @@ STATUS_LABELS = {
     "rejected": "Abgelehnt",
 }
 ROLE_LABELS = {
+    "viewer": "Zuschauer",
     "member": "Mitglied",
     "owner": "Eigentümer",
     "admin": "Admin",
@@ -160,6 +161,10 @@ def register_routes(app):
     @app.extensions["limiter"].limit("20 per hour")
     @login_required
     def company_new():
+        if current_user.role == "viewer":
+            flash("Du brauchst die Rolle Mitglied, um Firmen beantragen zu können.", "error")
+            return redirect(url_for("index"))
+
         suggestions = get_company_suggestions()
         if request.method == "POST":
             company = Company(
@@ -211,7 +216,8 @@ def register_routes(app):
         if not current_user.can_edit_company(company):
             abort(403)
 
-        users = User.query.order_by(User.username.asc()).all() if current_user.is_admin else []
+        can_manage_coowners = current_user.is_admin or company.owner_id == current_user.id
+        users = User.query.order_by(User.username.asc()).all() if can_manage_coowners else []
         suggestions = get_company_suggestions()
         if request.method == "POST":
             old_status = company.status
@@ -230,7 +236,7 @@ def register_routes(app):
                 flash(logo_error, "error")
                 company.status = old_status
                 company.owner_id = old_owner_id
-                return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions)
+                return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners)
             if current_user.is_admin:
                 requested_status = request.form.get("status", company.status)
                 if requested_status in COMPANY_STATUSES:
@@ -238,16 +244,18 @@ def register_routes(app):
                 if old_status != company.status and company.status == "rejected" and not status_reason:
                     flash("Bitte gib beim Ablehnen einen Grund an.", "error")
                     company.status = old_status
-                    return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions)
+                    return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners)
                 requested_owner_id = request.form.get("owner_id", type=int)
                 new_owner = db.session.get(User, requested_owner_id) if requested_owner_id else None
                 if not new_owner:
                     flash("Ungültiger Eigentümer.", "error")
                     company.status = old_status
-                    return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions)
+                    return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners)
                 company.owner_id = new_owner.id
                 if new_owner.role == "member":
                     new_owner.role = "owner"
+
+            if can_manage_coowners:
                 manager_ids = {int(value) for value in request.form.getlist("manager_ids") if value.isdigit()}
                 CompanyManager.query.filter_by(company_id=company.id).delete()
                 for manager_id in manager_ids:
@@ -259,7 +267,7 @@ def register_routes(app):
                 flash(error, "error")
                 company.status = old_status
                 company.owner_id = old_owner_id
-                return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions)
+                return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners)
 
             add_change(company, current_user, "updated", "Firmendaten wurden bearbeitet.")
             if old_status != company.status:
@@ -278,14 +286,14 @@ def register_routes(app):
             except IntegrityError:
                 db.session.rollback()
                 flash("Dieses Kürzel ist bereits vergeben.", "error")
-                return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions)
+                return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners)
 
             if old_status != company.status:
                 notify_company_status_changed(company, old_status, company.status, status_reason)
             flash("Firma wurde gespeichert.", "success")
             return redirect(url_for("company_detail", company_id=company.id))
 
-        return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions)
+        return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners)
 
     @app.route("/admin")
     @login_required
