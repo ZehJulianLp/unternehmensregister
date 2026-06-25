@@ -82,13 +82,24 @@
         </label>
         <label>
             Miteigentümer
-            <select name="manager_ids" multiple size="5">
+            <span class="field-hint">Haupteigentümer können nicht zusätzlich als Miteigentümer ausgewählt werden.</span>
+            <div class="checkbox-list">
                 {% for user in users %}
-                    <option value="{{ user.id }}" {% if company and user.id in company.managers|map(attribute='user_id')|list %}selected{% endif %}>
-                        {{ user.username }} · {{ role_labels[user.role] }}
-                    </option>
+                    <label class="checkbox-row {% if company.owner_id == user.id %}is-disabled{% endif %}">
+                        <input
+                            type="checkbox"
+                            name="manager_ids"
+                            value="{{ user.id }}"
+                            {% if company and user.id in company.managers|map(attribute='user_id')|list %}checked{% endif %}
+                            {% if company.owner_id == user.id %}disabled{% endif %}
+                        >
+                        <span>
+                            {{ user.username }} · {{ role_labels[user.role] }}
+                            {% if company.owner_id == user.id %}(Haupteigentümer){% endif %}
+                        </span>
+                    </label>
                 {% endfor %}
-            </select>
+            </div>
         </label>
     {% endif %}
 

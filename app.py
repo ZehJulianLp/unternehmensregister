@@ -18,6 +18,7 @@ from flask_wtf import CSRFProtect
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy import text
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 from models import COMPANY_STATUSES, USER_ROLES, AuditLog, Company, CompanyChange, CompanyManager, User, db
@@ -48,6 +49,7 @@ ROLE_LABELS = {
 
 def create_app():
     app = Flask(__name__)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
     app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "dev-secret-change-me")
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL", "sqlite:///register.db")
     app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
@@ -270,14 +272,15 @@ def register_routes(app):
                     company.status = old_status
                     return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners, available_parent_companies=available_parent_companies)
                 company.owner_id = new_owner.id
-                if new_owner.role == "member":
-                    new_owner.role = "owner"
+                promote_company_actor(new_owner)
 
             if can_manage_coowners:
                 manager_ids = {int(value) for value in request.form.getlist("manager_ids") if value.isdigit()}
                 CompanyManager.query.filter_by(company_id=company.id).delete()
                 for manager_id in manager_ids:
-                    if manager_id != company.owner_id and db.session.get(User, manager_id):
+                    manager = db.session.get(User, manager_id)
+                    if manager_id != company.owner_id and manager:
+                        promote_company_actor(manager)
                         db.session.add(CompanyManager(company_id=company.id, user_id=manager_id))
 
             error = validate_company(company)
@@ -677,6 +680,11 @@ def add_change(company, user, action, description):
             description=description,
         )
     )
+
+
+def promote_company_actor(user):
+    if user.role in ("viewer", "member"):
+        user.role = "owner"
 
 
 def exchange_discord_code(code):

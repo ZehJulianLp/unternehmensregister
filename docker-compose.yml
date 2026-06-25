@@ -7,7 +7,7 @@ services:
       - .env
     environment:
       DATABASE_URL: sqlite:////app/instance/register.db
-      SESSION_COOKIE_SECURE: "false"
+      SESSION_COOKIE_SECURE: "true"
     volumes:
       - register_data:/app/instance
       - register_uploads:/app/static/uploads
