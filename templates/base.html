@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ title or "Redstone & Rails Unternehmensregister" }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <header class="site-header">
+        <a class="brand" href="{{ url_for('index') }}">Redstone & Rails Unternehmensregister</a>
+        <nav class="nav">
+            <a href="{{ url_for('index') }}">Firmen</a>
+            {% if current_user.is_authenticated %}
+                <a href="{{ url_for('my_companies') }}">Meine Firmen</a>
+                <a href="{{ url_for('company_new') }}">Firma beantragen</a>
+                {% if current_user.is_admin %}
+                    <a href="{{ url_for('admin_dashboard') }}">Admin</a>
+                    <a href="{{ url_for('admin_pending') }}">Anträge</a>
+                {% endif %}
+                <span class="user-pill">{{ current_user.username }} · {{ role_labels[current_user.role] }}</span>
+                <a href="{{ url_for('logout') }}">Logout</a>
+            {% else %}
+                <a href="{{ url_for('login') }}">Discord Login</a>
+            {% endif %}
+            <button class="theme-toggle" type="button" data-theme-toggle aria-label="Darkmode umschalten">Darkmode</button>
+        </nav>
+    </header>
+
+    <main class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="messages">
+                    {% for category, message in messages %}
+                        <div class="message {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+    <script>
+        (function () {
+            const root = document.documentElement;
+            const button = document.querySelector("[data-theme-toggle]");
+            const storedTheme = localStorage.getItem("theme");
+            const preferredDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+            const initialTheme = storedTheme || (preferredDark ? "dark" : "light");
+
+            function applyTheme(theme) {
+                root.dataset.theme = theme;
+                if (button) {
+                    button.textContent = theme === "dark" ? "Lightmode" : "Darkmode";
+                }
+            }
+
+            applyTheme(initialTheme);
+            if (button) {
+                button.addEventListener("click", function () {
+                    const nextTheme = root.dataset.theme === "dark" ? "light" : "dark";
+                    localStorage.setItem("theme", nextTheme);
+                    applyTheme(nextTheme);
+                });
+            }
+        })();
+    </script>
+</body>
+</html>

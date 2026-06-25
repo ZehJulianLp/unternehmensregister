@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="detail-header">
+    <div>
+        <span class="badge status-{{ company.status }}">{{ status_labels[company.status] }}</span>
+        <h1>{{ company.name }}</h1>
+        <p class="short-name">{{ company.register_id }} · {{ company.short_name }}</p>
+    </div>
+    {% if current_user.is_authenticated and current_user.can_edit_company(company) %}
+        <div class="actions">
+            <a class="button" href="{{ url_for('company_edit', company_id=company.id) }}">Bearbeiten</a>
+            {% if current_user.is_admin %}
+                <form method="post" action="{{ url_for('admin_company_delete', company_id=company.id) }}" onsubmit="return confirm('Firma wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <input name="reason" required placeholder="Löschgrund">
+                    <button class="danger" type="submit">Firma löschen</button>
+                </form>
+            {% endif %}
+        </div>
+    {% endif %}
+</section>
+
+<section class="panel">
+    {% if company.logo_filename %}
+        <img class="company-logo detail" src="{{ url_for('static', filename='uploads/logos/' ~ company.logo_filename) }}" alt="Logo von {{ company.name }}">
+    {% endif %}
+    <h2>Firmendaten</h2>
+    <p>{{ company.description }}</p>
+    <dl class="meta large">
+        <div><dt>Branche</dt><dd>{{ company.industry }}</dd></div>
+        <div><dt>Status</dt><dd>{{ status_labels[company.status] }}</dd></div>
+        <div><dt>Sitz</dt><dd>{{ company.headquarters }}</dd></div>
+        <div><dt>Bezirk</dt><dd>{{ company.district }}</dd></div>
+        <div><dt>Eigentümer</dt><dd>{{ company.owner.username }}</dd></div>
+        <div><dt>Manager</dt><dd>{% if company.managers %}{{ company.managers|map(attribute='user.username')|join(', ') }}{% else %}-{% endif %}</dd></div>
+    </dl>
+</section>
+
+<section class="panel">
+    <h2>Änderungsverlauf</h2>
+    {% if company.changes %}
+        <ol class="timeline">
+            {% for change in company.changes %}
+                <li>
+                    <strong>{{ change.action }}</strong>
+                    <span>{{ change.description }}</span>
+                    <small>{{ change.created_at.strftime("%d.%m.%Y %H:%M") }}{% if change.user %} · {{ change.user.username }}{% endif %}</small>
+                </li>
+            {% endfor %}
+        </ol>
+    {% else %}
+        <p>Noch keine Änderungen.</p>
+    {% endif %}
+</section>
+{% endblock %}

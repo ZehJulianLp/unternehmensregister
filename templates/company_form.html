@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-heading">
+    <h1>{{ title }}</h1>
+</section>
+
+<form class="form panel" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <label>
+        Name
+        <input name="name" maxlength="160" required value="{{ company.name if company else '' }}">
+    </label>
+    <label>
+        Kürzel
+        <input name="short_name" maxlength="24" required value="{{ company.short_name if company else '' }}">
+    </label>
+    <label>
+        Beschreibung
+        <textarea name="description" rows="6" required>{{ company.description if company else '' }}</textarea>
+    </label>
+    <label>
+        Branche
+        <input name="industry" list="industry-suggestions" maxlength="120" required value="{{ company.industry if company else '' }}">
+    </label>
+    <label>
+        Sitz
+        <input name="headquarters" list="headquarters-suggestions" maxlength="160" required value="{{ company.headquarters if company else '' }}">
+    </label>
+    <label>
+        Bezirk
+        <input name="district" list="district-suggestions" maxlength="120" required value="{{ company.district if company else '' }}">
+    </label>
+    <label>
+        Logo
+        <input name="logo" type="file" accept=".png,.jpg,.jpeg,.webp,.gif">
+    </label>
+    {% if company and company.logo_filename %}
+        <img class="company-logo preview" src="{{ url_for('static', filename='uploads/logos/' ~ company.logo_filename) }}" alt="Aktuelles Logo von {{ company.name }}">
+        <label class="inline-check">
+            <input type="checkbox" name="remove_logo" value="1">
+            Logo entfernen
+        </label>
+    {% endif %}
+
+    {% if current_user.is_authenticated and current_user.is_admin and company %}
+        <label>
+            Eigentümer
+            <select name="owner_id" required>
+                {% for user in users %}
+                    <option value="{{ user.id }}" {% if company.owner_id == user.id %}selected{% endif %}>
+                        {{ user.username }} · {{ role_labels[user.role] }}
+                    </option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            Manager
+            <select name="manager_ids" multiple size="5">
+                {% for user in users %}
+                    <option value="{{ user.id }}" {% if company and user.id in company.managers|map(attribute='user_id')|list %}selected{% endif %}>
+                        {{ user.username }} · {{ role_labels[user.role] }}
+                    </option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            Status
+            <select name="status">
+                {% for status in company_statuses %}
+                    <option value="{{ status }}" {% if company.status == status %}selected{% endif %}>{{ status_labels[status] }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            Grund für Statusänderung
+            <input name="status_reason" placeholder="Optional, wird dem Eigentümer per Discord gesendet">
+        </label>
+    {% endif %}
+
+    <div class="actions">
+        <button type="submit">Speichern</button>
+        <a class="button secondary" href="{{ url_for('index') }}">Abbrechen</a>
+    </div>
+
+    <datalist id="industry-suggestions">
+        {% for value in suggestions.industries %}
+            <option value="{{ value }}">
+        {% endfor %}
+    </datalist>
+    <datalist id="headquarters-suggestions">
+        {% for value in suggestions.headquarters %}
+            <option value="{{ value }}">
+        {% endfor %}
+    </datalist>
+    <datalist id="district-suggestions">
+        {% for value in suggestions.districts %}
+            <option value="{{ value }}">
+        {% endfor %}
+    </datalist>
+</form>
+{% endblock %}

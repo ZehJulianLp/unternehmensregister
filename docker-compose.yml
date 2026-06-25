@@ -1,0 +1,18 @@
+services:
+  web:
+    build: .
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: sqlite:////app/instance/register.db
+      SESSION_COOKIE_SECURE: "false"
+    volumes:
+      - register_data:/app/instance
+      - register_uploads:/app/static/uploads
+    restart: unless-stopped
+
+volumes:
+  register_data:
+  register_uploads:

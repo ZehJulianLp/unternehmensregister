@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-heading">
+    <h1>Firmenregister</h1>
+    <p>Öffentliche Übersicht aller eingetragenen Firmen im Redstone & Rails Netzwerk.</p>
+</section>
+
+<form class="search-form" method="get" action="{{ url_for('index') }}">
+    <label class="search-label">
+        <span>Suche</span>
+        <input name="q" value="{{ search_query }}" placeholder="Name, Kürzel, Branche, Bezirk oder Eigentümer">
+    </label>
+    <label>
+        Status
+        <select name="status">
+            <option value="">Alle</option>
+            {% for status in company_statuses %}
+                <option value="{{ status }}" {% if status_filter == status %}selected{% endif %}>{{ status_labels[status] }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>
+        Branche
+        <select name="industry">
+            <option value="">Alle</option>
+            {% for industry in industries %}
+                <option value="{{ industry }}" {% if industry_filter == industry %}selected{% endif %}>{{ industry }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>
+        Bezirk
+        <select name="district">
+            <option value="">Alle</option>
+            {% for district in districts %}
+                <option value="{{ district }}" {% if district_filter == district %}selected{% endif %}>{{ district }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <button type="submit">Suchen</button>
+    {% if search_query or status_filter or industry_filter or district_filter %}
+        <a class="button secondary" href="{{ url_for('index') }}">Zurücksetzen</a>
+    {% endif %}
+</form>
+
+{% if companies %}
+    <div class="company-grid">
+        {% for company in companies %}
+            <article class="company-card">
+                {% if company.logo_filename %}
+                    <img class="company-logo" src="{{ url_for('static', filename='uploads/logos/' ~ company.logo_filename) }}" alt="Logo von {{ company.name }}">
+                {% endif %}
+                <div class="card-row">
+                    <span class="badge status-{{ company.status }}">{{ status_labels[company.status] }}</span>
+                    <span class="short-name">{{ company.register_id }} · {{ company.short_name }}</span>
+                </div>
+                <h2><a href="{{ url_for('company_detail', company_id=company.id) }}">{{ company.name }}</a></h2>
+                <p>{{ company.description[:180] }}{% if company.description|length > 180 %}...{% endif %}</p>
+                <dl class="meta">
+                    <div><dt>Branche</dt><dd>{{ company.industry }}</dd></div>
+                    <div><dt>Sitz</dt><dd>{{ company.headquarters }}</dd></div>
+                    <div><dt>Bezirk</dt><dd>{{ company.district }}</dd></div>
+                    <div><dt>Eigentümer</dt><dd>{{ company.owner.username }}</dd></div>
+                </dl>
+                {% if current_user.is_authenticated and current_user.is_admin %}
+                    <form class="card-delete-form" method="post" action="{{ url_for('admin_company_delete', company_id=company.id) }}" onsubmit="return confirm('Firma wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input name="reason" required placeholder="Löschgrund">
+                        <button class="small danger" type="submit">Firma löschen</button>
+                    </form>
+                {% endif %}
+            </article>
+        {% endfor %}
+    </div>
+
+    {% if pagination.pages > 1 %}
+        <nav class="pagination">
+            {% if pagination.has_prev %}
+                <a class="button secondary" href="{{ url_for('index', page=pagination.prev_num, q=search_query, status=status_filter, industry=industry_filter, district=district_filter) }}">Zurück</a>
+            {% endif %}
+            <span>Seite {{ pagination.page }} von {{ pagination.pages }}</span>
+            {% if pagination.has_next %}
+                <a class="button secondary" href="{{ url_for('index', page=pagination.next_num, q=search_query, status=status_filter, industry=industry_filter, district=district_filter) }}">Weiter</a>
+            {% endif %}
+        </nav>
+    {% endif %}
+{% else %}
+    <div class="empty-state">
+        {% if search_query or status_filter or industry_filter or district_filter %}
+            <h2>Keine Treffer</h2>
+            <p>Für die aktuellen Such- und Filterkriterien wurden keine Firmen gefunden.</p>
+        {% else %}
+            <h2>Noch keine Firmen eingetragen</h2>
+            <p>Nach dem Discord Login kann die erste Firma beantragt werden.</p>
+        {% endif %}
+    </div>
+{% endif %}
+{% endblock %}

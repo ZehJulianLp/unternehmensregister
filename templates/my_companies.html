@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-heading">
+    <h1>Meine Firmen</h1>
+    <p>Deine eingereichten und verwalteten Firmen.</p>
+</section>
+
+{% if companies %}
+    <div class="company-grid">
+        {% for company in companies %}
+            <article class="company-card">
+                {% if company.logo_filename %}
+                    <img class="company-logo" src="{{ url_for('static', filename='uploads/logos/' ~ company.logo_filename) }}" alt="Logo von {{ company.name }}">
+                {% endif %}
+                <div class="card-row">
+                    <span class="badge status-{{ company.status }}">{{ status_labels[company.status] }}</span>
+                    <span class="short-name">{{ company.register_id }} · {{ company.short_name }}</span>
+                </div>
+                <h2><a href="{{ url_for('company_detail', company_id=company.id) }}">{{ company.name }}</a></h2>
+                <p>{{ company.description[:180] }}{% if company.description|length > 180 %}...{% endif %}</p>
+                <div class="actions">
+                    <a class="button small" href="{{ url_for('company_edit', company_id=company.id) }}">Bearbeiten</a>
+                </div>
+            </article>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="empty-state">
+        <h2>Keine eigenen Firmen</h2>
+        <p>Du hast noch keine Firma beantragt.</p>
+        <a class="button" href="{{ url_for('company_new') }}">Firma beantragen</a>
+    </div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-heading">
+    <h1>{% if pending_only %}Offene Anträge{% else %}Adminbereich{% endif %}</h1>
+    <p>Firmen verwalten, Status setzen und Nutzer administrieren.</p>
+</section>
+
+<section class="stats-grid">
+    <div class="stat-box"><strong>{{ stats.pending }}</strong><span>Offen</span></div>
+    <div class="stat-box"><strong>{{ stats.active }}</strong><span>Aktiv</span></div>
+    <div class="stat-box"><strong>{{ stats.rejected }}</strong><span>Abgelehnt</span></div>
+    <div class="stat-box"><strong>{{ stats.users }}</strong><span>Nutzer</span></div>
+</section>
+
+<section class="panel">
+    <div class="section-title-row">
+        <h2>Firmen</h2>
+        <a class="button secondary small" href="{{ url_for('admin_pending' if not pending_only else 'admin_dashboard') }}">
+            {% if pending_only %}Alle Firmen{% else %}Nur offene Anträge{% endif %}
+        </a>
+    </div>
+    {% if companies %}
+        <div class="admin-company-list">
+            {% for company in companies %}
+                <article class="admin-company-item">
+                    <div class="admin-company-main">
+                        <a class="admin-company-name" href="{{ url_for('company_detail', company_id=company.id) }}">{{ company.name }}</a>
+                        <div class="admin-company-meta">
+                            <span>{{ company.register_id }}</span>
+                            <span>{{ company.short_name }}</span>
+                            <span class="badge status-{{ company.status }}">{{ status_labels[company.status] }}</span>
+                            <span>Eigentümer: {{ company.owner.username }}</span>
+                        </div>
+                    </div>
+                    <div class="admin-actions">
+                        <a class="button small" href="{{ url_for('company_edit', company_id=company.id) }}">Bearbeiten</a>
+                        <form method="post" action="{{ url_for('admin_company_status', company_id=company.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <select name="status">
+                                {% for status in company_statuses %}
+                                    <option value="{{ status }}" {% if company.status == status %}selected{% endif %}>{{ status_labels[status] }}</option>
+                                {% endfor %}
+                            </select>
+                            <input name="reason" placeholder="Grund optional, bei rejected Pflicht">
+                            <button class="small" type="submit">Setzen</button>
+                        </form>
+                        <form method="post" action="{{ url_for('admin_company_reject', company_id=company.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input name="reason" required placeholder="Ablehnungsgrund">
+                            <button class="small danger" type="submit">Antrag ablehnen</button>
+                        </form>
+                        <form method="post" action="{{ url_for('admin_company_delete', company_id=company.id) }}" onsubmit="return confirm('Firma wirklich löschen? Sie kann im Code/DB wiederhergestellt werden.');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input name="reason" required placeholder="Löschgrund">
+                            <button class="small danger" type="submit">Firma löschen</button>
+                        </form>
+                    </div>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>Keine Firmen vorhanden.</p>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <h2>Nutzer</h2>
+    {% if users %}
+        <div class="admin-user-list">
+            {% for user in users %}
+                <article class="admin-user-item">
+                    <div>
+                        <strong>{{ user.username }}</strong>
+                        <div class="muted">{{ user.discord_id }}</div>
+                    </div>
+                    <form class="admin-user-role-form" method="post" action="{{ url_for('admin_user_role', user_id=user.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <select name="role">
+                            {% for role in user_roles %}
+                                <option value="{{ role }}" {% if user.role == role %}selected{% endif %}>{{ role_labels[role] }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="small" type="submit">Rolle speichern</button>
+                    </form>
+                </article>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>Keine Nutzer vorhanden.</p>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <h2>Audit-Log</h2>
+    {% if audit_logs %}
+        <ol class="timeline">
+            {% for log in audit_logs %}
+                <li>
+                    <strong>{{ log.action }}</strong>
+                    <span>{{ log.description }}</span>
+                    <small>{{ log.created_at.strftime("%d.%m.%Y %H:%M") }}{% if log.actor %} · {{ log.actor.username }}{% endif %}</small>
+                </li>
+            {% endfor %}
+        </ol>
+    {% else %}
+        <p>Noch keine Admin-Aktionen.</p>
+    {% endif %}
+</section>
+{% endblock %}
