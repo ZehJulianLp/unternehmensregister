@@ -50,12 +50,15 @@ class Company(db.Model):
     headquarters = db.Column(db.String(160), nullable=False)
     district = db.Column(db.String(120), nullable=False)
     logo_filename = db.Column(db.String(255), nullable=True)
+    parent_company_id = db.Column(db.Integer, db.ForeignKey("company.id"), nullable=True, index=True)
     owner_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False, index=True)
     deleted_at = db.Column(db.DateTime(timezone=True), nullable=True, index=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now)
     updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utc_now, onupdate=utc_now)
 
     owner = db.relationship("User", back_populates="companies")
+    parent_company = db.relationship("Company", remote_side=[id], back_populates="subsidiaries")
+    subsidiaries = db.relationship("Company", back_populates="parent_company")
     managers = db.relationship("CompanyManager", back_populates="company", cascade="all, delete-orphan")
     changes = db.relationship(
         "CompanyChange",

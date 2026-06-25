@@ -218,6 +218,11 @@ def register_routes(app):
 
         can_manage_coowners = current_user.is_admin or company.owner_id == current_user.id
         users = User.query.order_by(User.username.asc()).all() if can_manage_coowners else []
+        available_parent_companies = (
+            Company.query.filter(Company.deleted_at.is_(None), Company.id != company.id)
+            .order_by(Company.name.asc())
+            .all()
+        )
         suggestions = get_company_suggestions()
         if request.method == "POST":
             old_status = company.status
@@ -229,6 +234,19 @@ def register_routes(app):
             company.industry = request.form.get("industry", "").strip()
             company.headquarters = request.form.get("headquarters", "").strip()
             company.district = request.form.get("district", "").strip()
+            requested_parent_id = request.form.get("parent_company_id", type=int)
+            company.parent_company_id = requested_parent_id if requested_parent_id else None
+            if company.parent_company_id == company.id:
+                flash("Eine Firma kann nicht ihr eigenes Mutterunternehmen sein.", "error")
+                return render_template(
+                    "company_form.html",
+                    company=company,
+                    title="Firma bearbeiten",
+                    users=users,
+                    suggestions=suggestions,
+                    can_manage_coowners=can_manage_coowners,
+                    available_parent_companies=available_parent_companies,
+                )
             if request.form.get("remove_logo") == "1":
                 company.logo_filename = None
             logo_error = save_company_logo(company, request.files.get("logo"))
@@ -236,7 +254,7 @@ def register_routes(app):
                 flash(logo_error, "error")
                 company.status = old_status
                 company.owner_id = old_owner_id
-                return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners)
+                return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners, available_parent_companies=available_parent_companies)
             if current_user.is_admin:
                 requested_status = request.form.get("status", company.status)
                 if requested_status in COMPANY_STATUSES:
@@ -244,13 +262,13 @@ def register_routes(app):
                 if old_status != company.status and company.status == "rejected" and not status_reason:
                     flash("Bitte gib beim Ablehnen einen Grund an.", "error")
                     company.status = old_status
-                    return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners)
+                    return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners, available_parent_companies=available_parent_companies)
                 requested_owner_id = request.form.get("owner_id", type=int)
                 new_owner = db.session.get(User, requested_owner_id) if requested_owner_id else None
                 if not new_owner:
                     flash("Ungültiger Eigentümer.", "error")
                     company.status = old_status
-                    return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners)
+                    return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners, available_parent_companies=available_parent_companies)
                 company.owner_id = new_owner.id
                 if new_owner.role == "member":
                     new_owner.role = "owner"
@@ -267,7 +285,7 @@ def register_routes(app):
                 flash(error, "error")
                 company.status = old_status
                 company.owner_id = old_owner_id
-                return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners)
+                return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners, available_parent_companies=available_parent_companies)
 
             add_change(company, current_user, "updated", "Firmendaten wurden bearbeitet.")
             if old_status != company.status:
@@ -286,14 +304,14 @@ def register_routes(app):
             except IntegrityError:
                 db.session.rollback()
                 flash("Dieses Kürzel ist bereits vergeben.", "error")
-                return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners)
+                return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners, available_parent_companies=available_parent_companies)
 
             if old_status != company.status:
                 notify_company_status_changed(company, old_status, company.status, status_reason)
             flash("Firma wurde gespeichert.", "success")
             return redirect(url_for("company_detail", company_id=company.id))
 
-        return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners)
+        return render_template("company_form.html", company=company, title="Firma bearbeiten", users=users, suggestions=suggestions, can_manage_coowners=can_manage_coowners, available_parent_companies=available_parent_companies)
 
     @app.route("/admin")
     @login_required
@@ -572,6 +590,7 @@ def ensure_schema():
         "logo_filename": "ALTER TABLE company ADD COLUMN logo_filename VARCHAR(255)",
         "register_id": "ALTER TABLE company ADD COLUMN register_id VARCHAR(24)",
         "deleted_at": "ALTER TABLE company ADD COLUMN deleted_at DATETIME",
+        "parent_company_id": "ALTER TABLE company ADD COLUMN parent_company_id INTEGER",
     }.items():
         if column_name in columns:
             continue

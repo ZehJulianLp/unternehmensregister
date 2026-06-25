@@ -70,6 +70,17 @@
 
     {% if can_manage_coowners and company %}
         <label>
+            Mutterunternehmen
+            <select name="parent_company_id">
+                <option value="">Kein Mutterunternehmen</option>
+                {% for parent in available_parent_companies %}
+                    <option value="{{ parent.id }}" {% if company.parent_company_id == parent.id %}selected{% endif %}>
+                        {{ parent.register_id }} · {{ parent.name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
             Miteigentümer
             <select name="manager_ids" multiple size="5">
                 {% for user in users %}

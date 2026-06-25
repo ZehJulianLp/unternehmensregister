@@ -34,8 +34,37 @@
         <div><dt>Bezirk</dt><dd>{{ company.district }}</dd></div>
         <div><dt>Eigentümer</dt><dd>{{ company.owner.username }}</dd></div>
         <div><dt>Miteigentümer</dt><dd>{% if company.managers %}{{ company.managers|map(attribute='user.username')|join(', ') }}{% else %}-{% endif %}</dd></div>
+        <div>
+            <dt>Mutterunternehmen</dt>
+            <dd>
+                {% if company.parent_company %}
+                    <a href="{{ url_for('company_detail', company_id=company.parent_company.id) }}">{{ company.parent_company.name }}</a>
+                {% else %}
+                    -
+                {% endif %}
+            </dd>
+        </div>
     </dl>
 </section>
+
+{% set active_subsidiaries = company.subsidiaries|selectattr("deleted_at", "none")|list %}
+{% if active_subsidiaries %}
+    <section class="panel">
+        <h2>Tochterunternehmen</h2>
+        <div class="company-grid">
+            {% for subsidiary in active_subsidiaries %}
+                <article class="company-card">
+                    <div class="card-row">
+                        <span class="badge status-{{ subsidiary.status }}">{{ status_labels[subsidiary.status] }}</span>
+                        <span class="short-name">{{ subsidiary.register_id }} · {{ subsidiary.short_name }}</span>
+                    </div>
+                    <h2><a href="{{ url_for('company_detail', company_id=subsidiary.id) }}">{{ subsidiary.name }}</a></h2>
+                    <p>{{ subsidiary.description[:140] }}{% if subsidiary.description|length > 140 %}...{% endif %}</p>
+                </article>
+            {% endfor %}
+        </div>
+    </section>
+{% endif %}
 
 <section class="panel">
     <h2>Änderungsverlauf</h2>

@@ -15,6 +15,7 @@ Eine klassische Flask-Webapp für ein fiktives Unternehmensregister mit Discord 
 - Register-ID pro Firma, z. B. `RR-0001`
 - Firmenlogos mit serverseitiger Bildprüfung
 - Miteigentümer pro Firma
+- Tochterunternehmen und Mutterunternehmen pro Firma
 - Admin-Dashboard mit Statistiken, Audit-Log und Benutzerverwaltung
 - Optional Discord-DMs und Admin-Channel-Benachrichtigungen
 - CSRF-Schutz, Security Headers und Rate Limiting
