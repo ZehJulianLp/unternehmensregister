@@ -48,6 +48,14 @@ ROLE_LABELS = {
 TYPE_LABELS = {
     "profit": "Profitunternehmen",
     "association": "Verein",
+    "nonprofit": "Gemeinnützige Organisation",
+    "cooperative": "Genossenschaft",
+    "public_institution": "Öffentliche Einrichtung",
+    "authority": "Behörde",
+    "foundation": "Stiftung",
+    "sole_proprietorship": "Einzelunternehmen",
+    "holding": "Holding",
+    "other": "Sonstige",
 }
 DEFAULT_PER_PAGE = 30
 MAX_PER_PAGE = 100

@@ -9,7 +9,18 @@ db = SQLAlchemy()
 
 USER_ROLES = ("viewer", "member", "owner", "admin")
 COMPANY_STATUSES = ("pending", "active", "inactive", "dissolved", "rejected")
-COMPANY_TYPES = ("profit", "association")
+COMPANY_TYPES = (
+    "profit",
+    "association",
+    "nonprofit",
+    "cooperative",
+    "public_institution",
+    "authority",
+    "foundation",
+    "sole_proprietorship",
+    "holding",
+    "other",
+)
 
 
 def utc_now():
