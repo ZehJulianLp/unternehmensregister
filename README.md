@@ -9,8 +9,9 @@ Eine klassische Flask-Webapp für ein fiktives Unternehmensregister mit Discord 
 - Discord OAuth2 Login
 - Session-Handling mit Flask-Login
 - Rollen: Zuschauer, Mitglied, Eigentümer, Admin
-- Öffentliche Firmenübersicht mit Suche, Filtern und Pagination
+- Öffentliche Firmenübersicht mit Suche, Filtern und wählbarer Pagination
 - Firmen beantragen, bearbeiten, freigeben, ablehnen und löschen
+- Firmen nach Verein und Profitunternehmen unterscheiden
 - Soft Delete für Firmen
 - Register-ID pro Firma, z. B. `RR-0001`
 - Firmenlogos mit serverseitiger Bildprüfung

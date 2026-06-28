@@ -8,6 +8,16 @@
 <form class="form panel" method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <label>
+        Art
+        <select name="company_type" required>
+            {% for company_type in company_types %}
+                <option value="{{ company_type }}" {% if (company.company_type if company else 'profit') == company_type %}selected{% endif %}>
+                    {{ type_labels[company_type] }}
+                </option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>
         Name
         <input name="name" maxlength="160" required value="{{ company.name if company else '' }}">
     </label>

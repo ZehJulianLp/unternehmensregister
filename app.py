@@ -21,7 +21,7 @@ from sqlalchemy import text
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
-from models import COMPANY_STATUSES, USER_ROLES, AuditLog, Company, CompanyChange, CompanyManager, User, db
+from models import COMPANY_STATUSES, COMPANY_TYPES, USER_ROLES, AuditLog, Company, CompanyChange, CompanyManager, User, db
 
 
 load_dotenv()
@@ -45,6 +45,12 @@ ROLE_LABELS = {
     "owner": "Eigentümer",
     "admin": "Admin",
 }
+TYPE_LABELS = {
+    "profit": "Profitunternehmen",
+    "association": "Verein",
+}
+DEFAULT_PER_PAGE = 6
+MAX_PER_PAGE = 100
 
 
 def create_app():
@@ -94,18 +100,27 @@ def register_routes(app):
     def inject_constants():
         return {
             "company_statuses": COMPANY_STATUSES,
+            "company_types": COMPANY_TYPES,
             "user_roles": USER_ROLES,
             "status_labels": STATUS_LABELS,
+            "type_labels": TYPE_LABELS,
             "role_labels": ROLE_LABELS,
+            "default_per_page": DEFAULT_PER_PAGE,
+            "max_per_page": MAX_PER_PAGE,
         }
 
     @app.route("/")
     def index():
         search_query = request.args.get("q", "").strip()
+        type_filter = request.args.get("type", "").strip()
         status_filter = request.args.get("status", "").strip()
         industry_filter = request.args.get("industry", "").strip()
         district_filter = request.args.get("district", "").strip()
         page = request.args.get("page", 1, type=int)
+        per_page = request.args.get("per_page", DEFAULT_PER_PAGE, type=int)
+        if per_page is None:
+            per_page = DEFAULT_PER_PAGE
+        per_page = max(1, min(per_page, MAX_PER_PAGE))
         companies_query = Company.query.filter(Company.deleted_at.is_(None)).join(User)
         if search_query:
             pattern = f"%{search_query}%"
@@ -115,11 +130,14 @@ def register_routes(app):
                     Company.short_name.ilike(pattern),
                     Company.description.ilike(pattern),
                     Company.industry.ilike(pattern),
+                    Company.company_type.ilike(pattern),
                     Company.headquarters.ilike(pattern),
                     Company.district.ilike(pattern),
                     User.username.ilike(pattern),
                 )
             )
+        if type_filter:
+            companies_query = companies_query.filter(Company.company_type == type_filter)
         if status_filter:
             companies_query = companies_query.filter(Company.status == status_filter)
         if industry_filter:
@@ -127,7 +145,7 @@ def register_routes(app):
         if district_filter:
             companies_query = companies_query.filter(Company.district == district_filter)
 
-        pagination = companies_query.order_by(Company.created_at.desc()).paginate(page=page, per_page=6, error_out=False)
+        pagination = companies_query.order_by(Company.created_at.desc()).paginate(page=page, per_page=per_page, error_out=False)
         industries = [row[0] for row in db.session.query(Company.industry).filter(Company.deleted_at.is_(None), Company.industry != "").distinct().order_by(Company.industry).all()]
         districts = [row[0] for row in db.session.query(Company.district).filter(Company.deleted_at.is_(None), Company.district != "").distinct().order_by(Company.district).all()]
         return render_template(
@@ -135,9 +153,11 @@ def register_routes(app):
             companies=pagination.items,
             pagination=pagination,
             search_query=search_query,
+            type_filter=type_filter,
             status_filter=status_filter,
             industry_filter=industry_filter,
             district_filter=district_filter,
+            per_page=per_page,
             industries=industries,
             districts=districts,
         )
@@ -174,6 +194,7 @@ def register_routes(app):
                 short_name=request.form.get("short_name", "").strip().upper(),
                 description=request.form.get("description", "").strip(),
                 industry=request.form.get("industry", "").strip(),
+                company_type=request.form.get("company_type", "profit").strip(),
                 status="pending",
                 headquarters=request.form.get("headquarters", "").strip(),
                 district=request.form.get("district", "").strip(),
@@ -234,6 +255,7 @@ def register_routes(app):
             company.short_name = request.form.get("short_name", "").strip().upper()
             company.description = request.form.get("description", "").strip()
             company.industry = request.form.get("industry", "").strip()
+            company.company_type = request.form.get("company_type", company.company_type).strip()
             company.headquarters = request.form.get("headquarters", "").strip()
             company.district = request.form.get("district", "").strip()
             requested_parent_id = request.form.get("parent_company_id", type=int)
@@ -560,6 +582,7 @@ def validate_company(company):
         (company.short_name, "Kürzel"),
         (company.description, "Beschreibung"),
         (company.industry, "Branche"),
+        (company.company_type, "Art"),
         (company.headquarters, "Sitz"),
         (company.district, "Bezirk"),
     ]
@@ -568,6 +591,8 @@ def validate_company(company):
         return "Pflichtfelder fehlen: " + ", ".join(missing)
     if company.status not in COMPANY_STATUSES:
         return "Ungültiger Status."
+    if company.company_type not in COMPANY_TYPES:
+        return "Ungültige Art."
     if len(company.description) < 20:
         return "Die Beschreibung muss mindestens 20 Zeichen lang sein."
     if not re.fullmatch(r"[A-Z0-9-]{2,24}", company.short_name):
@@ -594,6 +619,7 @@ def ensure_schema():
         "register_id": "ALTER TABLE company ADD COLUMN register_id VARCHAR(24)",
         "deleted_at": "ALTER TABLE company ADD COLUMN deleted_at DATETIME",
         "parent_company_id": "ALTER TABLE company ADD COLUMN parent_company_id INTEGER",
+        "company_type": "ALTER TABLE company ADD COLUMN company_type VARCHAR(30) NOT NULL DEFAULT 'profit'",
     }.items():
         if column_name in columns:
             continue

@@ -29,6 +29,7 @@
                         <div class="admin-company-meta">
                             <span>{{ company.register_id }}</span>
                             <span>{{ company.short_name }}</span>
+                            <span>{{ type_labels[company.company_type] }}</span>
                             <span class="badge status-{{ company.status }}">{{ status_labels[company.status] }}</span>
                             <span>Eigentümer: {{ company.owner.username }}</span>
                         </div>

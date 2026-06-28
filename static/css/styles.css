@@ -219,7 +219,7 @@ p {
 
 .search-form {
     display: grid;
-    grid-template-columns: minmax(220px, 1fr) repeat(3, minmax(140px, 180px)) auto auto;
+    grid-template-columns: minmax(220px, 1fr) repeat(5, minmax(120px, 170px)) auto auto;
     align-items: end;
     gap: 12px;
     margin: 0 0 22px;

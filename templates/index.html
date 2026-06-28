@@ -12,6 +12,15 @@
         <input name="q" value="{{ search_query }}" placeholder="Name, Kürzel, Branche, Bezirk oder Eigentümer">
     </label>
     <label>
+        Art
+        <select name="type">
+            <option value="">Alle</option>
+            {% for company_type in company_types %}
+                <option value="{{ company_type }}" {% if type_filter == company_type %}selected{% endif %}>{{ type_labels[company_type] }}</option>
+            {% endfor %}
+        </select>
+    </label>
+    <label>
         Status
         <select name="status">
             <option value="">Alle</option>
@@ -38,8 +47,12 @@
             {% endfor %}
         </select>
     </label>
+    <label>
+        Einträge
+        <input name="per_page" type="number" min="1" max="{{ max_per_page }}" value="{{ per_page }}">
+    </label>
     <button type="submit">Suchen</button>
-    {% if search_query or status_filter or industry_filter or district_filter %}
+    {% if search_query or type_filter or status_filter or industry_filter or district_filter or per_page != default_per_page %}
         <a class="button secondary" href="{{ url_for('index') }}">Zurücksetzen</a>
     {% endif %}
 </form>
@@ -58,6 +71,7 @@
                 <h2><a href="{{ url_for('company_detail', company_id=company.id) }}">{{ company.name }}</a></h2>
                 <p>{{ company.description[:180] }}{% if company.description|length > 180 %}...{% endif %}</p>
                 <dl class="meta">
+                    <div><dt>Art</dt><dd>{{ type_labels[company.company_type] }}</dd></div>
                     <div><dt>Branche</dt><dd>{{ company.industry }}</dd></div>
                     <div><dt>Sitz</dt><dd>{{ company.headquarters }}</dd></div>
                     <div><dt>Bezirk</dt><dd>{{ company.district }}</dd></div>
@@ -77,17 +91,17 @@
     {% if pagination.pages > 1 %}
         <nav class="pagination">
             {% if pagination.has_prev %}
-                <a class="button secondary" href="{{ url_for('index', page=pagination.prev_num, q=search_query, status=status_filter, industry=industry_filter, district=district_filter) }}">Zurück</a>
+                <a class="button secondary" href="{{ url_for('index', page=pagination.prev_num, q=search_query, type=type_filter, status=status_filter, industry=industry_filter, district=district_filter, per_page=per_page) }}">Zurück</a>
             {% endif %}
             <span>Seite {{ pagination.page }} von {{ pagination.pages }}</span>
             {% if pagination.has_next %}
-                <a class="button secondary" href="{{ url_for('index', page=pagination.next_num, q=search_query, status=status_filter, industry=industry_filter, district=district_filter) }}">Weiter</a>
+                <a class="button secondary" href="{{ url_for('index', page=pagination.next_num, q=search_query, type=type_filter, status=status_filter, industry=industry_filter, district=district_filter, per_page=per_page) }}">Weiter</a>
             {% endif %}
         </nav>
     {% endif %}
 {% else %}
     <div class="empty-state">
-        {% if search_query or status_filter or industry_filter or district_filter %}
+        {% if search_query or type_filter or status_filter or industry_filter or district_filter %}
             <h2>Keine Treffer</h2>
             <p>Für die aktuellen Such- und Filterkriterien wurden keine Firmen gefunden.</p>
         {% else %}

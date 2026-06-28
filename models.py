@@ -9,6 +9,7 @@ db = SQLAlchemy()
 
 USER_ROLES = ("viewer", "member", "owner", "admin")
 COMPANY_STATUSES = ("pending", "active", "inactive", "dissolved", "rejected")
+COMPANY_TYPES = ("profit", "association")
 
 
 def utc_now():
@@ -46,6 +47,7 @@ class Company(db.Model):
     short_name = db.Column(db.String(24), nullable=False, unique=True, index=True)
     description = db.Column(db.Text, nullable=False)
     industry = db.Column(db.String(120), nullable=False)
+    company_type = db.Column(db.String(30), nullable=False, default="profit", index=True)
     status = db.Column(db.String(20), nullable=False, default="pending", index=True)
     headquarters = db.Column(db.String(160), nullable=False)
     district = db.Column(db.String(120), nullable=False)

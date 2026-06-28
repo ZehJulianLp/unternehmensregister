@@ -29,6 +29,7 @@
     <p>{{ company.description }}</p>
     <dl class="meta large">
         <div><dt>Branche</dt><dd>{{ company.industry }}</dd></div>
+        <div><dt>Art</dt><dd>{{ type_labels[company.company_type] }}</dd></div>
         <div><dt>Status</dt><dd>{{ status_labels[company.status] }}</dd></div>
         <div><dt>Sitz</dt><dd>{{ company.headquarters }}</dd></div>
         <div><dt>Bezirk</dt><dd>{{ company.district }}</dd></div>
