@@ -11,50 +11,52 @@
         <span>Suche</span>
         <input name="q" value="{{ search_query }}" placeholder="Name, Kürzel, Branche, Bezirk oder Eigentümer">
     </label>
-    <label>
-        Art
-        <select name="type">
-            <option value="">Alle</option>
-            {% for company_type in company_types %}
-                <option value="{{ company_type }}" {% if type_filter == company_type %}selected{% endif %}>{{ type_labels[company_type] }}</option>
-            {% endfor %}
-        </select>
-    </label>
-    <label>
-        Status
-        <select name="status">
-            <option value="">Alle</option>
-            {% for status in company_statuses %}
-                <option value="{{ status }}" {% if status_filter == status %}selected{% endif %}>{{ status_labels[status] }}</option>
-            {% endfor %}
-        </select>
-    </label>
-    <label>
-        Branche
-        <select name="industry">
-            <option value="">Alle</option>
-            {% for industry in industries %}
-                <option value="{{ industry }}" {% if industry_filter == industry %}selected{% endif %}>{{ industry }}</option>
-            {% endfor %}
-        </select>
-    </label>
-    <label>
-        Bezirk
-        <select name="district">
-            <option value="">Alle</option>
-            {% for district in districts %}
-                <option value="{{ district }}" {% if district_filter == district %}selected{% endif %}>{{ district }}</option>
-            {% endfor %}
-        </select>
-    </label>
-    <label>
-        Einträge
-        <input name="per_page" type="number" min="1" max="{{ max_per_page }}" value="{{ per_page }}">
-    </label>
-    <button type="submit">Suchen</button>
-    {% if search_query or type_filter or status_filter or industry_filter or district_filter or per_page != default_per_page %}
-        <a class="button secondary" href="{{ url_for('index') }}">Zurücksetzen</a>
-    {% endif %}
+    <div class="filter-row">
+        <label>
+            Art
+            <select name="type">
+                <option value="">Alle</option>
+                {% for company_type in company_types %}
+                    <option value="{{ company_type }}" {% if type_filter == company_type %}selected{% endif %}>{{ type_labels[company_type] }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            Status
+            <select name="status">
+                <option value="">Alle</option>
+                {% for status in company_statuses %}
+                    <option value="{{ status }}" {% if status_filter == status %}selected{% endif %}>{{ status_labels[status] }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            Branche
+            <select name="industry">
+                <option value="">Alle</option>
+                {% for industry in industries %}
+                    <option value="{{ industry }}" {% if industry_filter == industry %}selected{% endif %}>{{ industry }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label>
+            Bezirk
+            <select name="district">
+                <option value="">Alle</option>
+                {% for district in districts %}
+                    <option value="{{ district }}" {% if district_filter == district %}selected{% endif %}>{{ district }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <label class="per-page-label">
+            Einträge
+            <input name="per_page" type="number" min="1" max="{{ max_per_page }}" value="{{ per_page }}">
+        </label>
+        <button type="submit">Suchen</button>
+        {% if search_query or type_filter or status_filter or industry_filter or district_filter or per_page != default_per_page %}
+            <a class="button secondary" href="{{ url_for('index') }}">Zurücksetzen</a>
+        {% endif %}
+    </div>
 </form>
 
 {% if companies %}

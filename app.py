@@ -49,7 +49,7 @@ TYPE_LABELS = {
     "profit": "Profitunternehmen",
     "association": "Verein",
 }
-DEFAULT_PER_PAGE = 6
+DEFAULT_PER_PAGE = 30
 MAX_PER_PAGE = 100
 
 

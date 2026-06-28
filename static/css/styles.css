@@ -219,8 +219,6 @@ p {
 
 .search-form {
     display: grid;
-    grid-template-columns: minmax(220px, 1fr) repeat(5, minmax(120px, 170px)) auto auto;
-    align-items: end;
     gap: 12px;
     margin: 0 0 22px;
     padding: 14px;
@@ -228,6 +226,22 @@ p {
 
 .search-label {
     min-width: 0;
+}
+
+.filter-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    align-items: end;
+    gap: 12px;
+}
+
+.filter-row button,
+.filter-row .button {
+    min-height: 42px;
+}
+
+.per-page-label {
+    max-width: 130px;
 }
 
 .pagination {
@@ -614,7 +628,7 @@ th {
 }
 
 @media (max-width: 920px) {
-    .search-form {
+    .filter-row {
         grid-template-columns: 1fr 1fr;
     }
 
@@ -674,7 +688,8 @@ th {
     }
 
     .company-grid,
-    .search-form {
+    .search-form,
+    .filter-row {
         grid-template-columns: 1fr;
         gap: 12px;
     }
@@ -684,6 +699,10 @@ th {
     .empty-state,
     .search-form {
         padding: 14px;
+    }
+
+    .per-page-label {
+        max-width: none;
     }
 
     .stats-grid {
