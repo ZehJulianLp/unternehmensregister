@@ -31,6 +31,7 @@ DISCORD_AUTHORIZE_URL = f"{DISCORD_API_BASE}/oauth2/authorize"
 DISCORD_TOKEN_URL = f"{DISCORD_API_BASE}/oauth2/token"
 DISCORD_USER_URL = f"{DISCORD_API_BASE}/users/@me"
 DISCORD_DM_URL = f"{DISCORD_API_BASE}/users/@me/channels"
+DISCORD_GUILD_MEMBER_URL = f"{DISCORD_API_BASE}/guilds/{{guild_id}}/members/{{user_id}}"
 ALLOWED_LOGO_EXTENSIONS = {"png", "jpg", "jpeg", "webp", "gif"}
 STATUS_LABELS = {
     "pending": "Wartet auf Freigabe",
@@ -838,14 +839,14 @@ def notify_company_status_changed(company, old_status, new_status, reason):
 
 
 def get_admin_discord_ids():
-    env_ids = {item.strip() for item in os.getenv("ADMIN_DISCORD_IDS", "").split(",") if item.strip()}
+    env_ids = get_env_id_set("ADMIN_DISCORD_IDS")
     db_ids = {user.discord_id for user in User.query.filter_by(role="admin").all()}
     return env_ids | db_ids
 
 
 def upsert_user(discord_user):
     discord_id = discord_user["id"]
-    admin_ids = {item.strip() for item in os.getenv("ADMIN_DISCORD_IDS", "").split(",") if item.strip()}
+    admin_ids = get_env_id_set("ADMIN_DISCORD_IDS")
     user = User.query.filter_by(discord_id=discord_id).first()
     if user is None:
         user = User(discord_id=discord_id, username=discord_user.get("username", "Discord User"), avatar=discord_user.get("avatar"))
@@ -855,17 +856,45 @@ def upsert_user(discord_user):
     user.avatar = discord_user.get("avatar")
     if discord_id in admin_ids:
         user.role = "admin"
+    elif user.role == "viewer" and user_has_discord_member_role(discord_id):
+        user.role = "member"
     db.session.commit()
     return user
 
 
 def sync_admin_roles():
-    admin_ids = {item.strip() for item in os.getenv("ADMIN_DISCORD_IDS", "").split(",") if item.strip()}
+    admin_ids = get_env_id_set("ADMIN_DISCORD_IDS")
     if not admin_ids:
         return
 
     User.query.filter(User.discord_id.in_(admin_ids)).update({"role": "admin"}, synchronize_session=False)
     db.session.commit()
+
+
+def get_env_id_set(name):
+    return {item.strip() for item in os.getenv(name, "").split(",") if item.strip()}
+
+
+def user_has_discord_member_role(discord_id):
+    guild_id = os.getenv("DISCORD_GUILD_ID", "").strip()
+    member_role_ids = get_env_id_set("DISCORD_MEMBER_ROLE_IDS")
+    bot_token = os.getenv("DISCORD_BOT_TOKEN")
+    if not guild_id or not member_role_ids or not bot_token:
+        return False
+
+    headers = {"Authorization": f"Bot {bot_token}"}
+    url = DISCORD_GUILD_MEMBER_URL.format(guild_id=guild_id, user_id=discord_id)
+    try:
+        response = requests.get(url, headers=headers, timeout=10)
+        if response.status_code == 404:
+            return False
+        response.raise_for_status()
+    except requests.RequestException:
+        current_app.logger.exception("Could not fetch Discord guild member %s", discord_id)
+        return False
+
+    member_roles = set(response.json().get("roles", []))
+    return bool(member_roles & member_role_ids)
 
 
 app = create_app()

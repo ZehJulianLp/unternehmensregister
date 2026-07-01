@@ -79,6 +79,8 @@ DISCORD_CLIENT_SECRET=your-discord-client-secret
 DISCORD_REDIRECT_URI=http://localhost:5000/callback
 DISCORD_BOT_TOKEN=your-discord-bot-token
 DISCORD_ADMIN_CHANNEL_ID=
+DISCORD_GUILD_ID=
+DISCORD_MEMBER_ROLE_IDS=
 DATABASE_URL=sqlite:///register.db
 ADMIN_DISCORD_IDS=123456789012345678
 SESSION_COOKIE_SECURE=false
@@ -86,6 +88,7 @@ RATELIMIT_STORAGE_URI=memory://
 ```
 
 `DISCORD_ADMIN_CHANNEL_ID` ist optional. Leer lassen deaktiviert Channel-Posts.
+`DISCORD_GUILD_ID` und `DISCORD_MEMBER_ROLE_IDS` sind optional. Wenn beide gesetzt sind, bekommen Nutzer beim Login automatisch die Rolle `Mitglied`, sobald sie auf dem Discord-Server eine der angegebenen Rollen haben. Mehrere Rollen-IDs werden kommagetrennt eingetragen.
 
 Für Produktion mit HTTPS:
 
@@ -109,7 +112,11 @@ http://localhost:5000/callback
    - `OAuth2` -> `URL Generator`
    - Scope: `bot`
    - Permission: `Send Messages`
-7. Aktiviere in Discord den Entwicklermodus und kopiere deine User-ID nach `ADMIN_DISCORD_IDS`.
+7. Optional für automatische Mitgliederrollen:
+   - Trage deine Server-ID in `DISCORD_GUILD_ID` ein.
+   - Trage erlaubte Rollen-IDs in `DISCORD_MEMBER_ROLE_IDS` ein.
+   - Aktiviere im Developer Portal beim Bot den Server Members Intent, falls Discord das Abfragen von Servermitgliedern blockiert.
+8. Aktiviere in Discord den Entwicklermodus und kopiere deine User-ID nach `ADMIN_DISCORD_IDS`.
 
 ## Starten ohne Docker
 
