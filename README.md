@@ -84,11 +84,13 @@ DISCORD_MEMBER_ROLE_IDS=
 DATABASE_URL=sqlite:///register.db
 ADMIN_DISCORD_IDS=123456789012345678
 SESSION_COOKIE_SECURE=false
+RATELIMIT_DEFAULT=1000 per hour
 RATELIMIT_STORAGE_URI=memory://
 ```
 
 `DISCORD_ADMIN_CHANNEL_ID` ist optional. Leer lassen deaktiviert Channel-Posts.
 `DISCORD_GUILD_ID` und `DISCORD_MEMBER_ROLE_IDS` sind optional. Wenn beide gesetzt sind, bekommen Nutzer beim Login automatisch die Rolle `Mitglied`, sobald sie auf dem Discord-Server eine der angegebenen Rollen haben. Mehrere Rollen-IDs werden kommagetrennt eingetragen.
+`RATELIMIT_DEFAULT` steuert das globale Standardlimit. Routen mit sensiblen Aktionen haben zusätzlich eigene Limits.
 
 Für Produktion mit HTTPS:
 

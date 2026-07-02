@@ -80,8 +80,9 @@ def create_app():
     limiter = Limiter(
         get_remote_address,
         app=app,
-        default_limits=["200 per hour"],
+        default_limits=[os.getenv("RATELIMIT_DEFAULT", "1000 per hour")],
         storage_uri=os.getenv("RATELIMIT_STORAGE_URI", "memory://"),
+        headers_enabled=True,
     )
     app.extensions["limiter"] = limiter
 
@@ -553,6 +554,14 @@ def register_routes(app):
     @app.errorhandler(404)
     def not_found(error):
         return render_template("error.html", title="Nicht gefunden", message="Diese Seite oder Firma existiert nicht."), 404
+
+    @app.errorhandler(429)
+    def too_many_requests(error):
+        retry_after = getattr(error, "retry_after", None)
+        message = "Zu viele Anfragen in kurzer Zeit. Bitte warte einen Moment und versuche es erneut."
+        if retry_after:
+            message = f"{message} Du kannst es in etwa {retry_after} Sekunden wieder versuchen."
+        return render_template("error.html", title="Zu viele Anfragen", message=message), 429
 
 
 def admin_required(view):
