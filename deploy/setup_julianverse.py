@@ -21,6 +21,9 @@ LOGGING = """        # Julianverse Register: OAuth codes must not enter logs.
         access_log off;
         error_log /var/log/nginx/register.error.log crit;
 """
+MAINTENANCE = """        add_header X-Julianverse-Maintenance "register" always;
+        return 503; # Register wird aktualisiert
+"""
 
 
 def run(args, timeout=120):
@@ -36,10 +39,8 @@ def nginx_config(original, maintenance=False):
             "Erwartete zwei amt.julianverse.de-Serverblöcke nicht gefunden."
         )
     # Only insert settings in this domain's two blocks; other hosts remain unchanged.
-    result = original.replace(LOGGING, "")
-    extra = LOGGING + (
-        "        return 503; # Register wird aktualisiert\n" if maintenance else ""
-    )
+    result = original.replace(LOGGING, "").replace(MAINTENANCE, "")
+    extra = LOGGING + (MAINTENANCE if maintenance else "")
     return result.replace(MARKER, MARKER + extra)
 
 
@@ -109,6 +110,47 @@ def check_local():
             pass
         time.sleep(1)
     raise RuntimeError("Die neue Anmeldeseite wurde nicht erreichbar.")
+
+
+def check_https(
+    timeout=45, *, maintenance=False, url="https://amt.julianverse.de/login"
+):
+    """A successful reload command only signals Nginx; wait for its public response."""
+    deadline = time.monotonic() + timeout
+    last = "keine Antwort"
+    while time.monotonic() < deadline:
+        request = urllib.request.Request(
+            url, headers={"Connection": "close", "Cache-Control": "no-cache"}
+        )
+        try:
+            with urllib.request.urlopen(
+                request, timeout=min(3, max(0.1, deadline - time.monotonic()))
+            ) as response:
+                body = response.read().decode(errors="replace")
+                last = f"HTTP {response.status}"
+                if not maintenance and response.status == 200:
+                    if "Mit Julianverse anmelden" in body and "Discord" in body:
+                        return
+                    last += " ohne die neue Anmeldeseite"
+        except urllib.error.HTTPError as error:
+            last = f"HTTP {error.code}"
+            ready = (
+                maintenance
+                and error.code == 503
+                and error.headers.get("X-Julianverse-Maintenance") == "register"
+            )
+            error.close()
+            if ready:
+                return
+        except (urllib.error.URLError, TimeoutError, ConnectionError) as error:
+            last = f"Verbindungsfehler ({type(error).__name__})"
+        remaining = deadline - time.monotonic()
+        if remaining > 0:
+            time.sleep(min(1, remaining))
+    target = "Wartungsmodus" if maintenance else "Julianverse-Anmeldeseite"
+    raise RuntimeError(
+        f"HTTPS-Prüfung: {target} nach {timeout} Sekunden nicht erreichbar ({last})."
+    )
 
 
 def main():
@@ -222,6 +264,7 @@ def main():
         NGINX.write_text(nginx_config(original, maintenance=True))
         run(["nginx", "-t"])
         run(["systemctl", "reload", "nginx"])
+        check_https(maintenance=True)
         stopped = True
         run(["docker", "stop", "--time", "30", current["Id"]], timeout=45)
         backup_database(database, backup / "register.db")
@@ -250,16 +293,15 @@ def main():
         require_unchanged(baseline, live, "Start")
         NGINX.write_text(nginx_config(original))
         run(["nginx", "-t"])
-        run(["systemctl", "reload", "nginx"])
+        # Once a public reload is requested, new writes may arrive even if the
+        # reload command itself times out. Never restore an older database then.
         released = True
-        with urllib.request.urlopen(
-            "https://amt.julianverse.de/login", timeout=15
-        ) as response:
-            if (
-                response.status != 200
-                or "Mit Julianverse anmelden" not in response.read().decode()
-            ):
-                raise RuntimeError("HTTPS-Prüfung fehlgeschlagen.")
+        run(["systemctl", "reload", "nginx"])
+        print(
+            "Warte auf die öffentliche Julianverse-Anmeldeseite (maximal 45 Sekunden).",
+            flush=True,
+        )
+        check_https()
     except BaseException:
         print("Einrichtung fehlgeschlagen; starte das vorherige Image.", flush=True)
         try:

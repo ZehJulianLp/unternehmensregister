@@ -274,7 +274,10 @@ Es baut das Image, prüft die Erweiterung an einer Datenbankkopie und schaltet d
 nur das Register kurz in den Wartungsmodus. Es sichert die SQLite-Datenbank,
 Uploads, Konfiguration und das vorherige Image. Die bestehenden Compose-Volumes
 bleiben erhalten; vor der Freigabe werden alle alten Datensätze verglichen.
-Bei einem Fehler wird das vorherige Image gestartet. Nginx protokolliert für
+Nach dem Nginx-Neuladen wartet das Skript auf den bestätigten Wartungsmodus bzw.
+bis zu 45 Sekunden auf die neue HTTPS-Anmeldeseite. Kurze 503-Antworten während
+der Umschaltung lösen dadurch keine vorzeitige Rückkehr zur alten Version aus.
+Bei einem anhaltenden Fehler wird das vorherige Image gestartet. Nginx protokolliert für
 `amt.julianverse.de` keine OAuth-Codes mehr. Andere Domains werden nicht geändert.
 Sicherungen liegen geschützt unter `/var/backups/register-sso.*`.
 

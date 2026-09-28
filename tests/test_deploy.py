@@ -1,10 +1,78 @@
 import json
 import sqlite3
+import urllib.error
 from contextlib import contextmanager
 
 import pytest
 
 from deploy import setup_julianverse as deploy
+
+
+@pytest.mark.parametrize("initial", ["maintenance", "upstream", "network", "old_page"])
+def test_https_check_waits_until_new_app_is_served(monkeypatch, initial):
+    calls = []
+
+    class Response:
+        status = 200
+        headers = {}
+
+        def read(self):
+            return (
+                b"old page"
+                if initial == "old_page" and len(calls) == 1
+                else b"Mit Julianverse anmelden Discord"
+            )
+
+    @contextmanager
+    def urlopen(request, **kwargs):
+        calls.append(request)
+        if len(calls) == 1:
+            if initial in ("maintenance", "upstream"):
+                raise urllib.error.HTTPError(
+                    request.full_url,
+                    503 if initial == "maintenance" else 502,
+                    "not ready",
+                    {},
+                    None,
+                )
+            if initial == "network":
+                raise urllib.error.URLError("not ready")
+        yield Response()
+
+    monkeypatch.setattr(deploy.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(deploy.time, "sleep", lambda seconds: None)
+    deploy.check_https()
+    assert len(calls) == 2
+    assert all(request.get_header("Connection") == "close" for request in calls)
+
+
+def test_https_check_fails_with_last_status_after_deadline(monkeypatch):
+    clock = [0]
+
+    def urlopen(request, **kwargs):
+        raise urllib.error.HTTPError(request.full_url, 503, "not ready", {}, None)
+
+    monkeypatch.setattr(deploy.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(deploy.time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(
+        deploy.time, "sleep", lambda seconds: clock.__setitem__(0, clock[0] + seconds)
+    )
+    with pytest.raises(RuntimeError, match="HTTPS.*HTTP 503"):
+        deploy.check_https(timeout=2)
+
+
+def test_maintenance_check_waits_for_our_own_marker(monkeypatch):
+    calls = []
+
+    def urlopen(request, **kwargs):
+        calls.append(request)
+        headers = {"X-Julianverse-Maintenance": "register"} if len(calls) == 2 else {}
+        raise urllib.error.HTTPError(request.full_url, 503, "not ready", headers, None)
+
+    monkeypatch.setattr(deploy.urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(deploy.time, "sleep", lambda seconds: None)
+    deploy.check_https(maintenance=True)
+    assert len(calls) == 2
 
 
 def test_data_guard_keeps_checking_rows_and_reports_table_without_contents(tmp_path):
@@ -40,7 +108,9 @@ def test_proxy_changes_only_register_blocks_and_is_repeatable():
         deploy.nginx_config("server_name unexpected.example;")
 
 
-@pytest.mark.parametrize("failure", ["none", "before_release", "after_release"])
+@pytest.mark.parametrize(
+    "failure", ["none", "transient_https", "before_release", "after_release"]
+)
 def test_deploy_keeps_data_and_rolls_back_without_losing_new_writes(
     tmp_path, monkeypatch, failure
 ):
@@ -100,11 +170,26 @@ def test_deploy_keeps_data_and_rolls_back_without_losing_new_writes(
         status = 200
 
         def read(self):
-            return b"Mit Julianverse anmelden"
+            return b"Mit Julianverse anmelden Discord"
+
+    public_calls = []
 
     @contextmanager
     def urlopen(*args, **kwargs):
+        if "return 503;" in nginx.read_text():
+            raise urllib.error.HTTPError(
+                "https://amt.julianverse.de/login",
+                503,
+                "maintenance",
+                {"X-Julianverse-Maintenance": "register"},
+                None,
+            )
         assert "return 503;" not in nginx.read_text()
+        public_calls.append(True)
+        if failure == "transient_https" and len(public_calls) == 1:
+            raise urllib.error.HTTPError(
+                "https://amt.julianverse.de/login", 503, "old worker", {}, None
+            )
         if failure == "after_release":
             with sqlite3.connect(database) as db:
                 db.execute("INSERT INTO company VALUES (2, 'New user write')")
@@ -118,6 +203,7 @@ def test_deploy_keeps_data_and_rolls_back_without_losing_new_writes(
     monkeypatch.setattr(deploy.os, "chown", lambda *args: None)
     monkeypatch.setattr(deploy.os, "umask", lambda *args: 0)
     monkeypatch.setattr(deploy.signal, "signal", lambda *args: None)
+    monkeypatch.setattr(deploy.time, "sleep", lambda seconds: None)
     monkeypatch.setattr(
         deploy.tempfile,
         "mkdtemp",
@@ -126,9 +212,13 @@ def test_deploy_keeps_data_and_rolls_back_without_losing_new_writes(
     monkeypatch.setattr(deploy, "run", run)
     monkeypatch.setattr(deploy, "check_local", check_local)
     monkeypatch.setattr(deploy.urllib.request, "urlopen", urlopen)
-    if failure == "none":
+    if failure in ("none", "transient_https"):
         deploy.main()
         assert "access_log off;" in nginx.read_text()
+        assert not any(
+            "up" in cmd and any(str(a).endswith("old.json") for a in cmd)
+            for cmd in commands
+        )
     else:
         with pytest.raises(RuntimeError):
             deploy.main()
