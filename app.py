@@ -29,7 +29,6 @@ from models import COMPANY_STATUSES, COMPANY_TYPES, USER_ROLES, AuditLog, Compan
 load_dotenv()
 
 DISCORD_API_BASE = "https://discord.com/api"
-DISCORD_AUTHORIZE_URL = f"{DISCORD_API_BASE}/oauth2/authorize"
 DISCORD_TOKEN_URL = f"{DISCORD_API_BASE}/oauth2/token"
 DISCORD_USER_URL = f"{DISCORD_API_BASE}/users/@me"
 DISCORD_DM_URL = f"{DISCORD_API_BASE}/users/@me/channels"

@@ -166,6 +166,7 @@ class Provider:
         assert response.status_code == 302
         params = parse_qs(urlsplit(response.location).query)
         assert urlsplit(response.location).hostname == "discord.com"
+        assert urlsplit(response.location).path == "/oauth2/authorize"
         return client.get(
             "/callback?"
             + urlencode({"code": "discord-code", "state": params["state"][0]})

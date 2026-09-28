@@ -33,7 +33,7 @@ def begin(purpose="login", next_path=None):
         state=state,
         prompt="consent",
     )
-    return redirect("https://discord.com/api/oauth2/authorize?" + urlencode(params))
+    return redirect("https://discord.com/oauth2/authorize?" + urlencode(params))
 
 
 def callback():
