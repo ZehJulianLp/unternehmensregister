@@ -255,6 +255,44 @@ def seed_user(app, role="owner"):
         return user.id, company.id
 
 
+def test_restart_preserves_existing_admin_rows(setup_sso, monkeypatch):
+    from deploy.setup_julianverse import fingerprint
+
+    app, _, _ = setup_sso
+    seed_user(app, role="admin")
+    monkeypatch.setenv("ADMIN_DISCORD_IDS", "123456789012345678")
+    with app.app_context():
+        path = db.engine.url.database
+    before = fingerprint(path)
+    restarted = create_app(dict(app.config))
+    try:
+        assert fingerprint(path) == before
+    finally:
+        with restarted.app_context():
+            db.session.remove()
+            db.engine.dispose()
+
+
+def test_startup_still_grants_configured_admin_role(setup_sso, monkeypatch):
+    app, _, _ = setup_sso
+    user_id, _ = seed_user(app, role="viewer")
+    monkeypatch.setenv("ADMIN_DISCORD_IDS", "123456789012345678")
+    restarted = create_app(dict(app.config))
+    try:
+        with restarted.app_context():
+            assert db.session.get(User, user_id).role == "admin"
+            assert (
+                db.session.scalar(
+                    db.select(User).where(User.discord_id == "234567890123456789")
+                ).role
+                == "member"
+            )
+    finally:
+        with restarted.app_context():
+            db.session.remove()
+            db.engine.dispose()
+
+
 def login_discord(client, provider):
     return provider.discord_finish(client, client.get("/auth/discord/login"))
 

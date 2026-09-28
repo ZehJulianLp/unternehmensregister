@@ -994,7 +994,9 @@ def sync_admin_roles():
     if not admin_ids:
         return
 
-    User.query.filter(User.discord_id.in_(admin_ids)).update({"role": "admin"}, synchronize_session=False)
+    User.query.filter(User.discord_id.in_(admin_ids), User.role != "admin").update(
+        {"role": "admin"}, synchronize_session=False
+    )
     db.session.commit()
 
 

@@ -7,6 +7,22 @@ import pytest
 from deploy import setup_julianverse as deploy
 
 
+def test_data_guard_keeps_checking_rows_and_reports_table_without_contents(tmp_path):
+    path = tmp_path / "register.db"
+    with sqlite3.connect(path) as db:
+        db.execute("CREATE TABLE user (id INTEGER PRIMARY KEY, name TEXT)")
+        db.execute("INSERT INTO user VALUES (1, 'private name')")
+    before = deploy.fingerprint(path)
+    with sqlite3.connect(path) as db:
+        db.execute("CREATE TABLE julianverse_identity (user_id INTEGER)")
+    deploy.require_unchanged(before, deploy.fingerprint(path), "Probelauf")
+    with sqlite3.connect(path) as db:
+        db.execute("UPDATE user SET name='another private name' WHERE id=1")
+    with pytest.raises(RuntimeError, match="user: Datensätze geändert") as error:
+        deploy.require_unchanged(before, deploy.fingerprint(path), "Probelauf")
+    assert "private name" not in str(error.value)
+
+
 def test_proxy_changes_only_register_blocks_and_is_repeatable():
     original = (
         "server {\n"

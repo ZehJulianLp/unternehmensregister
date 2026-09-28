@@ -73,6 +73,23 @@ def backup_database(source, target):
     os.chmod(target, 0o600)
 
 
+def require_unchanged(before, after, phase):
+    differences = []
+    for name, (schema, rows) in before.items():
+        current = after.get(name)
+        if current is None:
+            differences.append(f"{name}: Tabelle fehlt")
+        elif current[0] != schema:
+            differences.append(f"{name}: Tabellenschema geändert")
+        elif current[1] != rows:
+            differences.append(f"{name}: Datensätze geändert")
+    if differences:
+        raise RuntimeError(
+            f"{phase}: Bestehende Registerdaten wurden verändert; Abbruch. "
+            + "; ".join(differences)
+        )
+
+
 def check_local():
     for _ in range(45):
         try:
@@ -187,10 +204,7 @@ def main():
         timeout=90,
     )
     after = fingerprint(stage / "register.db")
-    if any(after.get(name) != value for name, value in before.items()):
-        raise RuntimeError(
-            "Der Probelauf würde bestehende Registerdaten verändern; Abbruch."
-        )
+    require_unchanged(before, after, "Probelauf")
     changed = False
     stopped = False
     released = False
@@ -233,8 +247,7 @@ def main():
         )
         check_local()
         live = fingerprint(database)
-        if any(live.get(name) != value for name, value in baseline.items()):
-            raise RuntimeError("Bestehende Datensätze wurden beim Start verändert.")
+        require_unchanged(baseline, live, "Start")
         NGINX.write_text(nginx_config(original))
         run(["nginx", "-t"])
         run(["systemctl", "reload", "nginx"])
