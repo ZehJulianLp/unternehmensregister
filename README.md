@@ -1,12 +1,12 @@
 # Redstone & Rails Unternehmensregister
 
-Eine klassische Flask-Webapp für ein fiktives Unternehmensregister mit Discord OAuth2 Login, Rollenverwaltung, Firmenanträgen, Admin-Freigabe, Audit-Log und Discord-Benachrichtigungen.
+Eine klassische Flask-Webapp für ein fiktives Unternehmensregister mit Julianverse- und Discord-Login, Rollenverwaltung, Firmenanträgen, Admin-Freigabe, Audit-Log und Discord-Benachrichtigungen.
 
 ## Features
 
 - Flask Backend mit Jinja Templates
 - SQLite-Datenbank via SQLAlchemy
-- Discord OAuth2 Login
+- Julianverse SSO (OpenID Connect mit PKCE) und bestehender Discord OAuth2 Login
 - Session-Handling mit Flask-Login
 - Rollen: Zuschauer, Mitglied, Eigentümer, Admin
 - Öffentliche Firmenübersicht mit Suche, Filtern und wählbarer Pagination
@@ -158,7 +158,7 @@ curl -X POST \
 ## Starten ohne Docker
 
 ```powershell
-python -m flask --app app run
+python -m flask --app wsgi run
 ```
 
 Danach:
@@ -223,3 +223,78 @@ Die App erstellt fehlende SQLite-Tabellen und einfache Spalten automatisch beim 
 ## Lizenz
 
 Dieses Projekt steht unter der MIT-Lizenz. Siehe [LICENSE](LICENSE).
+
+
+## Julianverse Account
+
+Auf der Anmeldeseite steht **Mit Julianverse anmelden** zur Verfügung. Bestehende
+Nutzer melden sich einmal mit Discord an und wählen in **Einstellungen →
+Julianverse Account** die Verknüpfung. Sie bestätigen zuerst ihren bisherigen
+Discord-Zugang und danach ihren Julianverse Account. Firmen, Miteigentümer,
+Register-IDs, Logos, Verlauf und Registerrollen bleiben beim bisherigen Nutzer.
+Gleiche Namen führen zu keiner automatischen Zusammenführung.
+
+Neue Nutzer wählen ausdrücklich **Neues Registerkonto erstellen**. Sie starten
+als Zuschauer. Register-Admins vergeben die lokalen Rechte wie bisher;
+Julianverse-Adminrechte werden nicht als Registerrechte übernommen. Discord kann
+später hinzugefügt werden, sofern dieser Discord-Zugang noch keinem anderen
+Registerkonto gehört. Zum Trennen von Julianverse ist ein bestätigter
+Discord-Zugang nötig. Die Löschung des Registerkontos erfordert eine frische,
+einmal verwendbare Anmeldebestätigung und löscht keinen Julianverse Account.
+
+### Einrichtung
+
+In Account einen vertraulichen OIDC-Client mit folgenden Werten anlegen:
+
+- Callback: `https://amt.julianverse.de/auth/julianverse/callback`
+- Scopes: `openid profile`
+- Grants: `authorization_code`, `refresh_token`
+- Token-Authentifizierung: `client_secret_basic`
+
+In der privaten `.env` ergänzen:
+
+```env
+PUBLIC_BASE_URL=https://amt.julianverse.de
+JULIANVERSE_ISSUER=https://account.julianverse.de
+JULIANVERSE_CLIENT_ID=client-id
+JULIANVERSE_CLIENT_SECRET=private-client-secret
+```
+
+`FLASK_SECRET_KEY` bleibt dauerhaft gleich; er schützt auch die verschlüsselten
+SSO-Tokens. Produktionsstart: `gunicorn --bind 0.0.0.0:5000 --workers 2 wsgi:app`.
+Fehlende Client-Werte deaktivieren Julianverse, der Discord-Zugang bleibt nutzbar.
+
+Auf dem bestehenden Server führt das folgende Skript die Bereitstellung aus:
+
+```bash
+sudo bash /home/srvmgr/unternehmensregister/deploy/setup-julianverse.sh
+```
+
+Es baut das Image, prüft die Erweiterung an einer Datenbankkopie und schaltet dann
+nur das Register kurz in den Wartungsmodus. Es sichert die SQLite-Datenbank,
+Uploads, Konfiguration und das vorherige Image. Die bestehenden Compose-Volumes
+bleiben erhalten; vor der Freigabe werden alle alten Datensätze verglichen.
+Bei einem Fehler wird das vorherige Image gestartet. Nginx protokolliert für
+`amt.julianverse.de` keine OAuth-Codes mehr. Andere Domains werden nicht geändert.
+Sicherungen liegen geschützt unter `/var/backups/register-sso.*`.
+
+Die Erweiterung fügt drei Tabellen für Identitäten, Sitzungen und Anmeldeversuche
+hinzu. Das bisherige User-Schema bleibt erhalten; Nutzer ohne Discord haben darin
+eine interne Kennung, die nicht als Discord-ID angezeigt oder weitergegeben wird.
+SSO-Tokens liegen verschlüsselt in SQLite; der Browser bekommt nur eine signierte
+Sitzung mit zufälliger Referenz. SSO-Sitzungen gelten bis zu 30 Tage. Spätestens
+bei der nächsten Anfrage nach 60 Sekunden wird der zentrale Zugang erneut geprüft.
+Ein Ausfall bei der Tokenrotation kann eine erneute Anmeldung erfordern, weil
+Refresh-Tokens nur einmal verwendet werden dürfen.
+
+### Tests
+
+```bash
+.venv/bin/pip install -r requirements-dev.txt
+.venv/bin/pytest -q
+```
+
+Die Tests verwenden temporäre Datenbanken und einen isolierten OAuth-Anbieter.
+Sie prüfen signierte ID-Tokens, PKCE, CSRF, gebundene und einmalige Callbacks,
+Verknüpfung und Trennung, unveränderte Firmenrechte, Tokenrotation, Widerruf
+sowie die erneute Identitätsprüfung vor einer Kontolöschung.

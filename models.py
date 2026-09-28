@@ -39,6 +39,18 @@ class User(UserMixin, db.Model):
     companies = db.relationship("Company", back_populates="owner", lazy=True)
     managed_companies = db.relationship("CompanyManager", back_populates="user", cascade="all, delete-orphan")
 
+    julianverse_identity = db.relationship(
+        "JulianverseIdentity", back_populates="user", cascade="all, delete-orphan", uselist=False
+    )
+
+    @property
+    def has_discord(self):
+        return bool(self.discord_id and self.discord_id.isdigit())
+
+    @property
+    def is_active(self):
+        return not self.discord_id.startswith("deleted-")
+
     @property
     def is_admin(self):
         return self.role == "admin"

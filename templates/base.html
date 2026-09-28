@@ -2,6 +2,7 @@
 <html lang="de">
 <head>
     <meta charset="utf-8">
+    <meta name="referrer" content="same-origin">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ title or "Redstone & Rails Unternehmensregister" }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
@@ -22,9 +23,12 @@
                     <a href="{{ url_for('admin_pending') }}">Anträge</a>
                 {% endif %}
                 <span class="user-pill">{{ current_user.username }} · {{ role_labels[current_user.role] }}</span>
-                <a href="{{ url_for('logout') }}">Logout</a>
+                <form class="nav-logout" method="post" action="{{ url_for('logout') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit">Abmelden</button>
+                </form>
             {% else %}
-                <a href="{{ url_for('login') }}">Discord Login</a>
+                <a href="{{ url_for('login') }}">Anmelden</a>
             {% endif %}
             <button class="theme-toggle" type="button" data-theme-toggle aria-label="Darkmode umschalten">Darkmode</button>
         </nav>

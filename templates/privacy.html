@@ -27,6 +27,11 @@
     <h2>6. Discord</h2>
     <p>Der Login läuft über Discord OAuth2. Dabei leitet Discord dich zur Anmeldung weiter und gibt der Website die für den Login nötigen Profildaten zurück. Für Discord selbst gelten die Datenschutzregeln von Discord.</p>
 
+    {% if julianverse_enabled %}
+    <h3>Julianverse Account</h3>
+    <p>Bei der freiwilligen Anmeldung über Julianverse speichert das Register eine dauerhafte Kontokennung und den übermittelten Benutzernamen. Bestehende Registerkonten werden erst nach Bestätigung des bisherigen Discord-Zugangs verknüpft. Zugriffstoken liegen verschlüsselt auf dem Server. Die Sitzung gilt höchstens 30 Tage; bei Nutzung wird der zentrale Anmeldestatus spätestens nach 60 Sekunden erneut geprüft. Für die Kontolöschung gilt eine erneute Bestätigung einmalig für fünf Minuten. Du kannst die Verknüpfung in den Einstellungen nach Bestätigung eines vorhandenen Discord-Zugangs trennen. Die Löschung deines Registerkontos entfernt die Verknüpfung und seine SSO-Sitzungen. Dein Julianverse-Konto bleibt erhalten.</p>
+    {% endif %}
+
     <h2>7. Rechtsgrundlagen</h2>
     <p>Die Verarbeitung erfolgt, soweit anwendbar, zur Bereitstellung der Website, zur Verwaltung des Registers, zur Zugriffskontrolle und zur Sicherheit des Dienstes. Grundlage sind insbesondere berechtigte Interessen am Betrieb und Schutz der Anwendung sowie die freiwillige Nutzung des Discord-Logins und der Registerfunktionen.</p>
 

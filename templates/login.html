@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="panel login-panel">
+    <h1>Im Unternehmensregister anmelden</h1>
+    {% if julianverse_enabled %}
+    <form method="post" action="{{ url_for('julianverse.start') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="next" value="{{ request.args.get('next', '') }}">
+        <button type="submit">Mit Julianverse anmelden</button>
+    </form>
+    <h2>Du hast schon ein Registerkonto?</h2>
+    <p>Melde dich einmal über deinen bisherigen Discord-Zugang an. Unter Einstellungen kannst du Julianverse verknüpfen. Deine Firmen, Miteigentümerschaften und Berechtigungen bleiben erhalten.</p>
+    {% else %}
+    <p>Melde dich mit deinem Discord-Zugang an.</p>
+    {% endif %}
+    <a class="button secondary" href="{{ url_for('julianverse.discord_login', next=request.args.get('next', '')) }}">Mit Discord anmelden</a>
+    {% if julianverse_enabled %}
+    <details class="new-account">
+        <summary>Du bist neu im Unternehmensregister?</summary>
+        <p>Erstelle ein Registerkonto mit Julianverse. Du startest als Zuschauer. Wenn du bereits Firmen im Register hast, verwende oben deinen bisherigen Discord-Zugang.</p>
+        <form method="post" action="{{ url_for('julianverse.register') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit">Neues Registerkonto erstellen</button>
+        </form>
+    </details>
+    {% endif %}
+</section>
+{% endblock %}

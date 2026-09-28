@@ -875,3 +875,14 @@ th {
         padding-left: 18px;
     }
 }
+
+
+/* Account connections use the existing register layout and colour palette. */
+.login-panel { max-width: 660px; margin: 2rem auto; }
+.login-panel h2 { margin-top: 2rem; }
+.new-account { margin-top: 2rem; }
+.account-connections { margin-top: 1.5rem; }
+.account-connections h3 { margin-top: 1.5rem; }
+.account-connections summary, .new-account summary { cursor: pointer; font-weight: 600; }
+.nav-logout { margin: 0; }
+.nav-logout button { padding: 7px 10px; font-size: inherit; background: transparent; border: 1px solid rgba(255, 255, 255, .14); color: white; }

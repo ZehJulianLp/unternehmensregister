@@ -1,0 +1,38 @@
+<section class="panel account-connections">
+    <h2>Deine Anmeldungen</h2>
+    {% if julianverse_enabled %}
+    <h3>Julianverse Account</h3>
+    {% if current_user.julianverse_identity %}
+    <p>Verknüpft mit <strong>{{ current_user.julianverse_identity.name }}</strong>.</p>
+    <p><a href="{{ julianverse_issuer }}/">Julianverse-Konto verwalten</a></p>
+    {% if current_user.has_discord %}
+    <details>
+        <summary>Julianverse-Verknüpfung trennen</summary>
+        <p>Bestätige deinen bisherigen Discord-Zugang. Danach nutzt du ihn wieder zur Anmeldung. Deine Firmen bleiben erhalten.</p>
+        <form method="post" action="{{ url_for('julianverse.unlink') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button type="submit" class="danger">Über Discord bestätigen und trennen</button>
+        </form>
+    </details>
+    {% else %}
+    <p>Zum Trennen brauchst du zuerst einen zusätzlichen Discord-Zugang, damit du dich weiter anmelden kannst.</p>
+    {% endif %}
+    {% else %}
+    <p>Verknüpfe Julianverse mit diesem Registerkonto. Du bestätigst zuerst deinen bisherigen Discord-Zugang und meldest dich anschließend bei Julianverse an.</p>
+    <form method="post" action="{{ url_for('julianverse.link') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit">Mit Julianverse verknüpfen</button>
+    </form>
+    {% endif %}
+    {% endif %}
+    <h3>Discord</h3>
+    {% if current_user.has_discord %}
+    <p>Dein Discord-Zugang bleibt für Anmeldung, konfigurierte Mitgliedsrollen und Benachrichtigungen verfügbar.</p>
+    {% else %}
+    <p>Verbinde Discord optional für einen zusätzlichen Zugang und den Discord-Rollenabgleich. Ein Discord-Zugang, der bereits zu einem anderen Registerkonto gehört, kann hier nicht übernommen werden.</p>
+    <form method="post" action="{{ url_for('julianverse.discord_link') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button type="submit">Discord verknüpfen</button>
+    </form>
+    {% endif %}
+</section>

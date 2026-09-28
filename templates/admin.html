@@ -73,7 +73,7 @@
                 <article class="admin-user-item">
                     <div>
                         <strong>{{ user.username }}</strong>
-                        <div class="muted">{{ user.discord_id }}</div>
+                        <div class="muted">{{ user.discord_id if user.has_discord else 'Julianverse-Zugang' }}</div>
                     </div>
                     <form class="admin-user-role-form" method="post" action="{{ url_for('admin_user_role', user_id=user.id) }}">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

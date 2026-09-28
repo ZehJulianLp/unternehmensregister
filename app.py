@@ -4,7 +4,6 @@ import math
 from datetime import datetime, timezone
 from uuid import uuid4
 from functools import wraps
-from urllib.parse import urlencode
 
 import truststore
 truststore.inject_into_ssl()
@@ -16,7 +15,7 @@ from dotenv import load_dotenv
 from flask import Flask, abort, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-from flask_login import LoginManager, current_user, login_required, login_user, logout_user
+from flask_login import LoginManager, current_user, login_required, logout_user
 from flask_wtf import CSRFProtect
 from PIL import Image, UnidentifiedImageError
 from sqlalchemy.exc import IntegrityError, OperationalError
@@ -70,7 +69,7 @@ MAX_PER_PAGE = 100
 ACCOUNT_DELETE_CONFIRMATION = "KONTO LÖSCHEN"
 
 
-def create_app():
+def create_app(test_config=None):
     app = Flask(__name__)
     app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_port=1)
     app.config["SECRET_KEY"] = os.getenv("FLASK_SECRET_KEY", "dev-secret-change-me")
@@ -81,6 +80,14 @@ def create_app():
     app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
     app.config["SESSION_COOKIE_SECURE"] = os.getenv("SESSION_COOKIE_SECURE", "false").lower() == "true"
     app.config["LOGO_UPLOAD_FOLDER"] = os.path.join(app.static_folder, "uploads", "logos")
+    app.config.update(
+        PUBLIC_BASE_URL=os.getenv("PUBLIC_BASE_URL", "https://amt.julianverse.de").rstrip("/"),
+        JULIANVERSE_ISSUER=os.getenv("JULIANVERSE_ISSUER", "https://account.julianverse.de"),
+        JULIANVERSE_CLIENT_ID=os.getenv("JULIANVERSE_CLIENT_ID", ""),
+        JULIANVERSE_CLIENT_SECRET=os.getenv("JULIANVERSE_CLIENT_SECRET", ""),
+    )
+    if test_config:
+        app.config.update(test_config)
     os.makedirs(app.config["LOGO_UPLOAD_FOLDER"], exist_ok=True)
 
     db.init_app(app)
@@ -97,12 +104,23 @@ def create_app():
 
     login_manager = LoginManager()
     login_manager.login_view = "login"
-    login_manager.login_message = "Bitte melde dich mit Discord an."
+    login_manager.login_message = "Bitte melde dich an."
     login_manager.init_app(app)
 
     @login_manager.user_loader
     def load_user(user_id):
-        return db.session.get(User, int(user_id))
+        try:
+            user = db.session.get(User, int(user_id))
+        except (TypeError, ValueError):
+            return None
+        return user if user and user.is_active else None
+
+    from julianverse import init_app as init_julianverse
+    app.extensions["register_auth_hooks"] = {
+        "exchange_discord_code": exchange_discord_code, "fetch_discord_user": fetch_discord_user,
+        "upsert_user": upsert_user, "add_audit": add_audit,
+    }
+    init_julianverse(app)
 
     with app.app_context():
         db.create_all()
@@ -251,7 +269,7 @@ def register_routes(app):
     @app.extensions["limiter"].limit("5 per minute")
     @login_required
     def settings_sync_discord_role():
-        if not is_discord_member_role_sync_enabled():
+        if not current_user.has_discord or not is_discord_member_role_sync_enabled():
             flash("Discord-Rollenabgleich ist nicht konfiguriert.", "error")
             return redirect(url_for("settings"))
         if current_user.is_admin or current_user.is_owner:
@@ -274,6 +292,10 @@ def register_routes(app):
             flash(f"Bitte gib zur Bestätigung exakt {ACCOUNT_DELETE_CONFIRMATION} ein.", "error")
             return redirect(url_for("settings"))
 
+        from julianverse.attempts import consume_confirmation
+        if not consume_confirmation():
+            flash("Bestätige deine Anmeldung zuerst erneut in den Einstellungen.", "error")
+            return redirect(url_for("settings"))
         deleted_username = current_user.username
         delete_user_account(current_user)
         logout_user()
@@ -579,67 +601,25 @@ def register_routes(app):
         return redirect(url_for("admin_dashboard"))
 
     @app.route("/login")
-    @app.extensions["limiter"].limit("10 per minute")
+    @app.extensions["limiter"].limit("30 per minute")
     def login():
-        client_id = os.getenv("DISCORD_CLIENT_ID")
-        client_secret = os.getenv("DISCORD_CLIENT_SECRET")
-        redirect_uri = os.getenv("DISCORD_REDIRECT_URI", url_for("callback", _external=True))
-        if not client_id or not client_secret:
-            flash("Discord OAuth ist noch nicht konfiguriert.", "error")
-            return redirect(url_for("index"))
-
-        state = os.urandom(16).hex()
-        session["oauth_state"] = state
-        params = {
-            "client_id": client_id,
-            "redirect_uri": redirect_uri,
-            "response_type": "code",
-            "scope": "identify",
-            "state": state,
-            "prompt": "consent",
-        }
-        return redirect(f"{DISCORD_AUTHORIZE_URL}?{urlencode(params)}")
+        if current_user.is_authenticated:
+            return redirect(url_for("settings"))
+        return render_template("login.html", title="Anmelden")
 
     @app.route("/callback")
+    @app.extensions["limiter"].limit("20 per minute")
     def callback():
-        if request.args.get("error"):
-            flash(f"Discord Login fehlgeschlagen: {request.args.get('error_description', request.args['error'])}", "error")
-            return redirect(url_for("index"))
+        from julianverse.discord import callback as discord_callback
+        return discord_callback()
 
-        if request.args.get("state") != session.pop("oauth_state", None):
-            abort(400)
-        code = request.args.get("code")
-        if not code:
-            flash("Discord Login wurde abgebrochen.", "error")
-            return redirect(url_for("index"))
-
-        try:
-            token = exchange_discord_code(code)
-            discord_user = fetch_discord_user(token["access_token"])
-        except KeyError:
-            app.logger.exception("Discord OAuth response did not contain an access token")
-            flash("Discord Login fehlgeschlagen: Discord hat kein Access Token zurückgegeben.", "error")
-            return redirect(url_for("index"))
-        except requests.HTTPError as error:
-            status_code = error.response.status_code if error.response is not None else "unbekannt"
-            error_text = error.response.text if error.response is not None else str(error)
-            app.logger.error("Discord OAuth HTTP error %s: %s", status_code, error_text)
-            flash(f"Discord Login fehlgeschlagen: Discord API Fehler {status_code}. Details stehen im Server-Log.", "error")
-            return redirect(url_for("index"))
-        except requests.RequestException:
-            app.logger.exception("Discord OAuth request failed")
-            flash("Discord Login fehlgeschlagen: Discord API konnte nicht erreicht werden.", "error")
-            return redirect(url_for("index"))
-
-        user = upsert_user(discord_user)
-        login_user(user)
-        flash("Du bist angemeldet.", "success")
-        return redirect(url_for("index"))
-
-    @app.route("/logout")
+    @app.route("/logout", methods=["POST"])
     @login_required
     def logout():
+        from julianverse.sessions import clear_session
+        clear_session()
         logout_user()
+        session.clear()
         flash("Du bist abgemeldet.", "success")
         return redirect(url_for("index"))
 
@@ -675,7 +655,7 @@ def register_security_headers(app):
     def add_security_headers(response):
         response.headers.setdefault("X-Content-Type-Options", "nosniff")
         response.headers.setdefault("X-Frame-Options", "DENY")
-        response.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+        response.headers.setdefault("Referrer-Policy", "same-origin")
         response.headers.setdefault("Permissions-Policy", "geolocation=(), microphone=(), camera=()")
         response.headers.setdefault(
             "Content-Security-Policy",
@@ -683,7 +663,9 @@ def register_security_headers(app):
             "img-src 'self' data:; "
             "style-src 'self' 'unsafe-inline'; "
             "script-src 'self' 'unsafe-inline'; "
-            "form-action 'self'; "
+            "form-action 'self' https://discord.com "
+            + (app.config["JULIANVERSE_ISSUER"] + " " if app.config["JULIANVERSE_ENABLED"] else "")
+            + "; "
             "base-uri 'self'; "
             "frame-ancestors 'none'",
         )
@@ -885,6 +867,8 @@ def fetch_discord_user(access_token):
 
 
 def send_discord_dm(discord_id, message):
+    if not str(discord_id).isdigit():
+        return False
     bot_token = os.getenv("DISCORD_BOT_TOKEN")
     if not bot_token:
         current_app.logger.info("Discord bot token missing; skipped DM to %s", discord_id)
@@ -983,7 +967,7 @@ def notify_company_status_changed(company, old_status, new_status, reason):
 
 def get_admin_discord_ids():
     env_ids = get_env_id_set("ADMIN_DISCORD_IDS")
-    db_ids = {user.discord_id for user in User.query.filter_by(role="admin").all()}
+    db_ids = {user.discord_id for user in User.query.filter_by(role="admin").all() if user.has_discord}
     return env_ids | db_ids
 
 
@@ -1015,6 +999,10 @@ def sync_admin_roles():
 
 
 def delete_user_account(user):
+    from julianverse.sessions import clear_session
+    clear_session()
+    if user.julianverse_identity:
+        db.session.delete(user.julianverse_identity)
     now = datetime.now(timezone.utc)
     owned_companies = Company.query.filter_by(owner_id=user.id, deleted_at=None).all()
     for company in owned_companies:
@@ -1043,7 +1031,11 @@ def build_user_data_export(user):
     return {
         "user": {
             "id": user.id,
-            "discord_id": user.discord_id,
+            "discord_id": user.discord_id if user.has_discord else None,
+            "julianverse": ({"issuer": user.julianverse_identity.issuer,
+                             "subject": user.julianverse_identity.subject,
+                             "linked_at": user.julianverse_identity.linked_at}
+                            if user.julianverse_identity else None),
             "username": user.username,
             "avatar": user.avatar,
             "role": user.role,
@@ -1100,6 +1092,8 @@ def get_env_id_set(name):
 
 
 def user_has_discord_member_role(discord_id):
+    if not str(discord_id).isdigit():
+        return False
     guild_id = os.getenv("DISCORD_GUILD_ID", "").strip()
     member_role_ids = get_env_id_set("DISCORD_MEMBER_ROLE_IDS")
     bot_token = os.getenv("DISCORD_BOT_TOKEN")
@@ -1121,8 +1115,5 @@ def user_has_discord_member_role(discord_id):
     return bool(member_roles & member_role_ids)
 
 
-app = create_app()
-
-
 if __name__ == "__main__":
-    app.run(debug=True)
+    create_app().run(debug=True)

@@ -7,3 +7,5 @@ venv/
 instance/
 static/uploads/
 .vscode/
+.pytest_cache/
+.ruff_cache/
