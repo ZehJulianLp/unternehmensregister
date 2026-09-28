@@ -76,6 +76,7 @@ Die Compose-Konfiguration nutzt persistente Volumes für:
 FLASK_SECRET_KEY=change-me
 DISCORD_CLIENT_ID=your-discord-client-id
 DISCORD_CLIENT_SECRET=your-discord-client-secret
+DISCORD_PUBLIC_KEY=your-discord-application-public-key
 DISCORD_REDIRECT_URI=http://localhost:5000/callback
 DISCORD_BOT_TOKEN=your-discord-bot-token
 DISCORD_ADMIN_CHANNEL_ID=
@@ -109,16 +110,50 @@ http://localhost:5000/callback
 ```
 
 4. Kopiere `Client ID` und `Client Secret` in `.env`.
-5. Unter `Bot` erstelle einen Bot und kopiere den Bot Token nach `DISCORD_BOT_TOKEN`.
-6. Lade den Bot auf deinen Server ein:
+5. Kopiere unter `General Information` den `Public Key` nach `DISCORD_PUBLIC_KEY`.
+6. Unter `Bot` erstelle einen Bot und kopiere den Bot Token nach `DISCORD_BOT_TOKEN`.
+7. Lade den Bot auf deinen Server ein:
    - `OAuth2` -> `URL Generator`
    - Scope: `bot`
    - Permission: `Send Messages`
-7. Optional für automatische Mitgliederrollen:
+8. Optional für automatische Mitgliederrollen:
    - Trage deine Server-ID in `DISCORD_GUILD_ID` ein.
    - Trage erlaubte Rollen-IDs in `DISCORD_MEMBER_ROLE_IDS` ein.
    - Aktiviere im Developer Portal beim Bot den Server Members Intent, falls Discord das Abfragen von Servermitgliedern blockiert.
-8. Aktiviere in Discord den Entwicklermodus und kopiere deine User-ID nach `ADMIN_DISCORD_IDS`.
+9. Aktiviere in Discord den Entwicklermodus und kopiere deine User-ID nach `ADMIN_DISCORD_IDS`.
+
+### Discord Slash Command
+
+Die App stellt einen Discord-Interactions-Endpoint bereit:
+
+```text
+https://deine-domain.example/discord/interactions
+```
+
+Diesen Endpoint trägst du im Discord Developer Portal unter `Interactions Endpoint URL` ein. Der enthaltene Slash Command heißt `/bremsweg` und gibt den Mindestsignalabstand für die Option `geschwindigkeit` in km/h aus.
+
+Für einen schnellen Guild-Test kannst du den Command so registrieren:
+
+```bash
+curl -X POST \
+  -H "Authorization: Bot $DISCORD_BOT_TOKEN" \
+  -H "Content-Type: application/json" \
+  "https://discord.com/api/v10/applications/$DISCORD_CLIENT_ID/guilds/$DISCORD_GUILD_ID/commands" \
+  -d '{
+    "name": "bremsweg",
+    "description": "Berechnet den Mindestsignalabstand für eine Geschwindigkeit.",
+    "options": [
+      {
+        "type": 4,
+        "name": "geschwindigkeit",
+        "description": "Geschwindigkeit in km/h",
+        "required": true,
+        "min_value": 0,
+        "max_value": 160
+      }
+    ]
+  }'
+```
 
 ## Starten ohne Docker
 

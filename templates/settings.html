@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="page-heading">
+    <h1>Einstellungen</h1>
+    <p>Deine Konto- und Datenschutzinformationen im Unternehmensregister.</p>
+</section>
+
+<section class="settings-grid">
+    <div class="panel">
+        <h2>Konto</h2>
+        <dl class="meta large">
+            <div><dt>Discord-Name</dt><dd>{{ current_user.username }}</dd></div>
+            <div><dt>Discord-ID</dt><dd>{{ current_user.discord_id }}</dd></div>
+            <div><dt>Rolle</dt><dd>{{ role_labels[current_user.role] }}</dd></div>
+            <div><dt>Erstellt</dt><dd>{{ current_user.created_at.strftime("%d.%m.%Y %H:%M") }}</dd></div>
+        </dl>
+    </div>
+
+    <div class="panel">
+        <h2>Datenschutzrechte</h2>
+        <p>Du kannst deine gespeicherten Kontodaten als JSON herunterladen. Für Berichtigung kannst du dich an die Projektadministration wenden.</p>
+        <div class="actions">
+            <a class="button" href="{{ url_for('settings_export') }}">Daten exportieren</a>
+            <a class="button secondary" href="{{ url_for('privacy') }}">Datenschutzerklärung</a>
+        </div>
+    </div>
+
+    <div class="panel">
+        <h2>Discord-Rollenabgleich</h2>
+        {% if discord_role_sync_enabled %}
+            <p>Wenn du auf dem Discord-Server eine freigegebene Mitgliedsrolle hast, kannst du deine lokale Rolle hier erneut prüfen lassen.</p>
+            <form method="post" action="{{ url_for('settings_sync_discord_role') }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button type="submit">Rolle neu prüfen</button>
+            </form>
+        {% else %}
+            <p>Der automatische Discord-Rollenabgleich ist aktuell nicht konfiguriert.</p>
+        {% endif %}
+    </div>
+</section>
+
+<section class="panel danger-zone">
+    <h2>Konto löschen</h2>
+    <p>Wenn du dein Konto löschst, werden dein Discord-Bezug und dein Name anonymisiert. Eigene Firmen werden ausgeblendet, Miteigentümer-Einträge werden entfernt. Audit- und Registerhistorie bleiben als Systemnachweis erhalten.</p>
+    <form method="post" action="{{ url_for('settings_delete_account') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label>
+            Bestätigung
+            <input name="confirmation" required placeholder="KONTO LÖSCHEN">
+        </label>
+        <button class="danger" type="submit">Konto löschen</button>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>Registerbezug</h2>
+    <div class="settings-list">
+        <div>
+            <h3>Eigene Firmen</h3>
+            {% if owned_companies %}
+                <ul>
+                    {% for company in owned_companies %}
+                        <li><a href="{{ url_for('company_detail', company_id=company.id) }}">{{ company.register_id }} · {{ company.name }}</a></li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>Keine eigenen Firmen.</p>
+            {% endif %}
+        </div>
+        <div>
+            <h3>Miteigentümer</h3>
+            {% if managed_companies %}
+                <ul>
+                    {% for company in managed_companies %}
+                        <li><a href="{{ url_for('company_detail', company_id=company.id) }}">{{ company.register_id }} · {{ company.name }}</a></li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>Keine Miteigentümer-Einträge.</p>
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<section class="panel">
+    <h2>Letzte Admin-/Systemeinträge von dir</h2>
+    {% if audit_logs %}
+        <ol class="timeline">
+            {% for log in audit_logs %}
+                <li>
+                    <strong>{{ log.action }}</strong>
+                    <span>{{ log.description }}</span>
+                    <small>{{ log.created_at.strftime("%d.%m.%Y %H:%M") }}</small>
+                </li>
+            {% endfor %}
+        </ol>
+    {% else %}
+        <p>Keine Audit-Log-Einträge.</p>
+    {% endif %}
+</section>
+{% endblock %}

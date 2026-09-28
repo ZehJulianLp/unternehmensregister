@@ -1,5 +1,6 @@
 import os
 import re
+import math
 from datetime import datetime, timezone
 from uuid import uuid4
 from functools import wraps
@@ -9,8 +10,10 @@ import truststore
 truststore.inject_into_ssl()
 
 import requests
+from nacl.exceptions import BadSignatureError
+from nacl.signing import VerifyKey
 from dotenv import load_dotenv
-from flask import Flask, abort, current_app, flash, redirect, render_template, request, session, url_for
+from flask import Flask, abort, current_app, flash, jsonify, redirect, render_template, request, session, url_for
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_login import LoginManager, current_user, login_required, login_user, logout_user
@@ -32,6 +35,10 @@ DISCORD_TOKEN_URL = f"{DISCORD_API_BASE}/oauth2/token"
 DISCORD_USER_URL = f"{DISCORD_API_BASE}/users/@me"
 DISCORD_DM_URL = f"{DISCORD_API_BASE}/users/@me/channels"
 DISCORD_GUILD_MEMBER_URL = f"{DISCORD_API_BASE}/guilds/{{guild_id}}/members/{{user_id}}"
+DISCORD_INTERACTION_PING = 1
+DISCORD_INTERACTION_APPLICATION_COMMAND = 2
+DISCORD_INTERACTION_RESPONSE_PONG = 1
+DISCORD_INTERACTION_RESPONSE_CHANNEL_MESSAGE = 4
 ALLOWED_LOGO_EXTENSIONS = {"png", "jpg", "jpeg", "webp", "gif"}
 STATUS_LABELS = {
     "pending": "Wartet auf Freigabe",
@@ -60,6 +67,7 @@ TYPE_LABELS = {
 }
 DEFAULT_PER_PAGE = 30
 MAX_PER_PAGE = 100
+ACCOUNT_DELETE_CONFIRMATION = "KONTO LÖSCHEN"
 
 
 def create_app():
@@ -76,7 +84,8 @@ def create_app():
     os.makedirs(app.config["LOGO_UPLOAD_FOLDER"], exist_ok=True)
 
     db.init_app(app)
-    CSRFProtect(app)
+    csrf = CSRFProtect(app)
+    app.extensions["csrf_protect"] = csrf
     limiter = Limiter(
         get_remote_address,
         app=app,
@@ -172,6 +181,35 @@ def register_routes(app):
             districts=districts,
         )
 
+    @app.route("/datenschutz")
+    def privacy():
+        return render_template("privacy.html", title="Datenschutzerklärung")
+
+    @app.route("/discord/interactions", methods=["POST"])
+    @app.extensions["csrf_protect"].exempt
+    @app.extensions["limiter"].limit("120 per minute")
+    def discord_interactions():
+        if not verify_discord_interaction_signature():
+            abort(401)
+
+        interaction = request.get_json(silent=True) or {}
+        interaction_type = interaction.get("type")
+        if interaction_type == DISCORD_INTERACTION_PING:
+            return jsonify({"type": DISCORD_INTERACTION_RESPONSE_PONG})
+
+        if interaction_type != DISCORD_INTERACTION_APPLICATION_COMMAND:
+            return discord_interaction_message("Dieser Interaction-Typ wird nicht unterstützt.", ephemeral=True)
+
+        command = interaction.get("data", {}).get("name")
+        if command == "bremsweg":
+            speed = get_discord_command_option(interaction, "geschwindigkeit")
+            if speed is None:
+                return discord_interaction_message("Bitte gib eine Geschwindigkeit in km/h an.", ephemeral=True)
+            distance = speed_to_braking_distance(speed)
+            return discord_interaction_message(f"Mindestsignalabstand bei {int(speed)} km/h: **{distance} m**")
+
+        return discord_interaction_message("Unbekannter Command.", ephemeral=True)
+
     @app.route("/me")
     @login_required
     def my_companies():
@@ -183,6 +221,64 @@ def register_routes(app):
             .all()
         )
         return render_template("my_companies.html", companies=companies)
+
+    @app.route("/settings")
+    @login_required
+    def settings():
+        owned_companies = Company.query.filter_by(owner_id=current_user.id, deleted_at=None).order_by(Company.created_at.desc()).all()
+        managed_companies = (
+            Company.query.join(CompanyManager)
+            .filter(CompanyManager.user_id == current_user.id, Company.deleted_at.is_(None))
+            .order_by(Company.created_at.desc())
+            .all()
+        )
+        audit_logs = AuditLog.query.filter_by(actor_id=current_user.id).order_by(AuditLog.created_at.desc()).limit(10).all()
+        return render_template(
+            "settings.html",
+            title="Einstellungen",
+            owned_companies=owned_companies,
+            managed_companies=managed_companies,
+            audit_logs=audit_logs,
+            discord_role_sync_enabled=is_discord_member_role_sync_enabled(),
+        )
+
+    @app.route("/settings/export")
+    @login_required
+    def settings_export():
+        return jsonify(build_user_data_export(current_user))
+
+    @app.route("/settings/sync-discord-role", methods=["POST"])
+    @app.extensions["limiter"].limit("5 per minute")
+    @login_required
+    def settings_sync_discord_role():
+        if not is_discord_member_role_sync_enabled():
+            flash("Discord-Rollenabgleich ist nicht konfiguriert.", "error")
+            return redirect(url_for("settings"))
+        if current_user.is_admin or current_user.is_owner:
+            flash("Deine aktuelle Rolle ist bereits höher als Mitglied.", "success")
+            return redirect(url_for("settings"))
+        if user_has_discord_member_role(current_user.discord_id):
+            current_user.role = "member"
+            db.session.commit()
+            flash("Deine Discord-Rolle wurde geprüft. Du bist jetzt Mitglied.", "success")
+        else:
+            flash("Für deinen Discord-Account wurde keine freigegebene Mitgliedsrolle gefunden.", "error")
+        return redirect(url_for("settings"))
+
+    @app.route("/settings/delete-account", methods=["POST"])
+    @app.extensions["limiter"].limit("3 per hour")
+    @login_required
+    def settings_delete_account():
+        confirmation = request.form.get("confirmation", "").strip()
+        if confirmation != ACCOUNT_DELETE_CONFIRMATION:
+            flash(f"Bitte gib zur Bestätigung exakt {ACCOUNT_DELETE_CONFIRMATION} ein.", "error")
+            return redirect(url_for("settings"))
+
+        deleted_username = current_user.username
+        delete_user_account(current_user)
+        logout_user()
+        flash(f"Das Konto {deleted_username} wurde gelöscht. Zugehörige eigene Firmen wurden ausgeblendet.", "success")
+        return redirect(url_for("index"))
 
     @app.route("/company/<int:company_id>")
     def company_detail(company_id):
@@ -731,6 +827,44 @@ def promote_company_actor(user):
         user.role = "owner"
 
 
+def speed_to_braking_distance(speed):
+    acceleration = 20
+    if 0 <= speed <= 160:
+        rounded_speed = math.ceil(speed / 10) * 10
+        braking_distance = (rounded_speed / 3.6) ** 2 / (2 * acceleration / 3.6)
+        return math.floor(braking_distance / 50) * 50 + 50
+    return 200
+
+
+def get_discord_command_option(interaction, name):
+    for option in interaction.get("data", {}).get("options", []):
+        if option.get("name") == name:
+            return option.get("value")
+    return None
+
+
+def discord_interaction_message(content, ephemeral=False):
+    data = {"content": content}
+    if ephemeral:
+        data["flags"] = 64
+    return jsonify({"type": DISCORD_INTERACTION_RESPONSE_CHANNEL_MESSAGE, "data": data})
+
+
+def verify_discord_interaction_signature():
+    public_key = os.getenv("DISCORD_PUBLIC_KEY", "").strip()
+    signature = request.headers.get("X-Signature-Ed25519", "")
+    timestamp = request.headers.get("X-Signature-Timestamp", "")
+    if not public_key or not signature or not timestamp:
+        return False
+
+    try:
+        verify_key = VerifyKey(bytes.fromhex(public_key))
+        verify_key.verify(timestamp.encode("utf-8") + request.get_data(), bytes.fromhex(signature))
+        return True
+    except (BadSignatureError, ValueError):
+        return False
+
+
 def exchange_discord_code(code):
     data = {
         "client_id": os.getenv("DISCORD_CLIENT_ID"),
@@ -878,6 +1012,87 @@ def sync_admin_roles():
 
     User.query.filter(User.discord_id.in_(admin_ids)).update({"role": "admin"}, synchronize_session=False)
     db.session.commit()
+
+
+def delete_user_account(user):
+    now = datetime.now(timezone.utc)
+    owned_companies = Company.query.filter_by(owner_id=user.id, deleted_at=None).all()
+    for company in owned_companies:
+        company.deleted_at = now
+        add_change(company, user, "owner_account_deleted", "Eigentümerkonto wurde gelöscht; Firma wurde ausgeblendet.")
+        add_audit(user, "owner_account_deleted", "company", company.id, f"Eigentümerkonto von {user.username} wurde gelöscht; Firma {company.name} wurde ausgeblendet.")
+
+    CompanyManager.query.filter_by(user_id=user.id).delete()
+    user.discord_id = f"deleted-{user.id}"
+    user.username = "Gelöschter Nutzer"
+    user.avatar = None
+    user.role = "viewer"
+    db.session.commit()
+
+
+def build_user_data_export(user):
+    owned_companies = Company.query.filter_by(owner_id=user.id).order_by(Company.created_at.desc()).all()
+    managed_companies = (
+        Company.query.join(CompanyManager)
+        .filter(CompanyManager.user_id == user.id)
+        .order_by(Company.created_at.desc())
+        .all()
+    )
+    audit_logs = AuditLog.query.filter_by(actor_id=user.id).order_by(AuditLog.created_at.desc()).all()
+    changes = CompanyChange.query.filter_by(user_id=user.id).order_by(CompanyChange.created_at.desc()).all()
+    return {
+        "user": {
+            "id": user.id,
+            "discord_id": user.discord_id,
+            "username": user.username,
+            "avatar": user.avatar,
+            "role": user.role,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
+            "updated_at": user.updated_at.isoformat() if user.updated_at else None,
+        },
+        "owned_companies": [serialize_company(company) for company in owned_companies],
+        "managed_companies": [serialize_company(company) for company in managed_companies],
+        "audit_logs": [
+            {
+                "action": log.action,
+                "target_type": log.target_type,
+                "target_id": log.target_id,
+                "description": log.description,
+                "created_at": log.created_at.isoformat() if log.created_at else None,
+            }
+            for log in audit_logs
+        ],
+        "company_changes": [
+            {
+                "company_id": change.company_id,
+                "action": change.action,
+                "description": change.description,
+                "created_at": change.created_at.isoformat() if change.created_at else None,
+            }
+            for change in changes
+        ],
+    }
+
+
+def serialize_company(company):
+    return {
+        "id": company.id,
+        "register_id": company.register_id,
+        "name": company.name,
+        "short_name": company.short_name,
+        "company_type": company.company_type,
+        "industry": company.industry,
+        "status": company.status,
+        "headquarters": company.headquarters,
+        "district": company.district,
+        "deleted_at": company.deleted_at.isoformat() if company.deleted_at else None,
+        "created_at": company.created_at.isoformat() if company.created_at else None,
+        "updated_at": company.updated_at.isoformat() if company.updated_at else None,
+    }
+
+
+def is_discord_member_role_sync_enabled():
+    return bool(os.getenv("DISCORD_GUILD_ID", "").strip() and get_env_id_set("DISCORD_MEMBER_ROLE_IDS") and os.getenv("DISCORD_BOT_TOKEN"))
 
 
 def get_env_id_set(name):
